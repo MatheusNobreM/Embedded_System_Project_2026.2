@@ -38,11 +38,10 @@
 </style>
 <main>
   <h1>Plano de execução — aquisicao-processamento</h1>
-  <p class="sub">gerado por <code>onp-spec plano</code> em 2026-11-02 17:51 · regenere após mudar tasks.md</p>
+  <p class="sub">gerado por <code>onp-spec plano</code> em 2026-11-02 18:08 · regenere após mudar tasks.md</p>
   <div class="resumo">
-    <div><b>9</b> tarefa(s) em paralelo</div>
-    <div><b>9</b> faixa(s) · <b>3</b> onda(s)</div>
-    <div><b>0</b> sequencial(is)</div>
+    <div><b>9</b> tarefa(s), uma após a outra</div>
+    <div>modo <b>sequencial</b> (escolha do usuário)</div>
     <div>branch <code>spec/aquisicao-processamento</code></div>
   </div>
   
@@ -50,122 +49,77 @@
     <h2>Como executar — via agente</h2>
     <p>Peça ao agente (Claude Code) para executar o plano. Ele roda:</p>
     <div><code id="cmd">bash .spec/features/aquisicao-processamento/executar-tarefas.sh</code></div>
-    <p class="nota">Este arquivo é só visualização. Cada faixa roda <code>claude -p</code> num worktree próprio, com contexto limpo, modelo e esforço já definidos.
+    <p class="nota">Este arquivo é só visualização. Cada tarefa roda <code>claude -p</code> na árvore principal, uma após a outra, com contexto limpo e modelo/esforço já definidos.
     O gate final (verify + audit) roda sozinho; a execução fica em background e, a cada
     1 minuto, o agente posta no chat a <b>tabela de andamento</b>
     (<code>onp-spec resumo aquisicao-processamento --tabela</code>) e o
     <b>resumo geral de andamento</b> (<code>onp-spec resumo aquisicao-processamento</code>).</p>
   </div>
   
+  
     <section class="onda">
-      <h3>Onda 1 <small>faixa-1 ∥ faixa-2 ∥ faixa-3 — em paralelo, janelas limpas</small></h3>
-      <div class="grade">
-      <div class="faixa">
-        <h4>faixa-1 <small>branch <code>spec/aquisicao-processamento-faixa-1</code> · worktree <code>../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-1</code></small></h4>
-        
+      <h3>Ordem de execução <small>uma tarefa após a outra, na árvore principal</small></h3>
+      <div class="grade"><div class="faixa">
         <div class="tarefa">
           <span class="tid">T-001</span>
           <span class="ttitulo">Base Pico W pura e ponte de testes com o motor</span>
           <span class="meta"><code>claude-sonnet-5</code> · esforço <b>medium</b></span>
           <span class="arquivos"><code>energytrack-fw-3.2/include/board_pins.h</code> <code>energytrack-fw-3.2/include/board_resources.h</code> <code>energytrack-fw-3.2/src/hal/board_init.c</code> <code>energytrack-fw-3.2/src/hal/board_init.h</code> <code>energytrack-fw-3.2/app/selftest_main.c</code> <code>energytrack-fw-3.2/test/host/tap.h</code> <code>energytrack-fw-3.2/test/host/test_pinmap.c</code> <code>energytrack-fw-3.2/test/spec/lib/host.mjs</code> <code>energytrack-fw-3.2/test/spec/base-picow.spec.test.mjs</code> <code>onpspec.config.json</code> <code>.spec/constituicao.md</code></span>
         </div>
-      </div>
-      <div class="faixa">
-        <h4>faixa-2 <small>branch <code>spec/aquisicao-processamento-faixa-2</code> · worktree <code>../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-2</code></small></h4>
-        
         <div class="tarefa">
           <span class="tid">T-002</span>
           <span class="ttitulo">Aquisição: timer de hardware, PZEM pela UART e temperatura por ADC + DMA</span>
           <span class="meta"><code>claude-sonnet-5</code> · esforço <b>medium</b></span>
           <span class="arquivos"><code>energytrack-fw-3.2/src/hal/acq_timer.c</code> <code>energytrack-fw-3.2/src/hal/acq_timer.h</code> <code>energytrack-fw-3.2/src/hal/adc_dma.c</code> <code>energytrack-fw-3.2/src/hal/adc_dma.h</code> <code>energytrack-fw-3.2/src/hal/pzem_link.c</code> <code>energytrack-fw-3.2/src/hal/pzem_link.h</code> <code>energytrack-fw-3.2/src/hal/pzem_modbus.c</code> <code>energytrack-fw-3.2/src/hal/pzem_modbus.h</code> <code>energytrack-fw-3.2/src/proc/temp_sensor.c</code> <code>energytrack-fw-3.2/src/proc/temp_sensor.h</code> <code>energytrack-fw-3.2/test/host/test_temp.c</code> <code>energytrack-fw-3.2/test/spec/aquisicao.spec.test.mjs</code></span>
         </div>
-      </div>
-      <div class="faixa">
-        <h4>faixa-3 <small>branch <code>spec/aquisicao-processamento-faixa-3</code> · worktree <code>../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-3</code></small></h4>
-        
         <div class="tarefa">
           <span class="tid">T-003</span>
           <span class="ttitulo">Potência e energia: integração, recuperação de lacuna e virada do dia</span>
           <span class="meta"><code>claude-sonnet-5</code> · esforço <b>medium</b></span>
           <span class="arquivos"><code>energytrack-fw-3.2/src/proc/energy.c</code> <code>energytrack-fw-3.2/src/proc/energy.h</code> <code>energytrack-fw-3.2/test/host/test_energy.c</code> <code>energytrack-fw-3.2/test/spec/energia.spec.test.mjs</code></span>
         </div>
-      </div></div>
-    </section>
-    <section class="onda">
-      <h3>Onda 2 <small>faixa-4 ∥ faixa-5 ∥ faixa-6 — em paralelo, janelas limpas</small></h3>
-      <div class="grade">
-      <div class="faixa">
-        <h4>faixa-4 <small>branch <code>spec/aquisicao-processamento-faixa-4</code> · worktree <code>../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-4</code></small></h4>
-        
         <div class="tarefa">
           <span class="tid">T-004</span>
           <span class="ttitulo">Meta diária e limite de potência</span>
           <span class="meta"><code>claude-sonnet-5</code> · esforço <b>medium</b></span>
           <span class="arquivos"><code>energytrack-fw-3.2/src/proc/goal.c</code> <code>energytrack-fw-3.2/src/proc/goal.h</code> <code>energytrack-fw-3.2/test/host/test_goal.c</code> <code>energytrack-fw-3.2/test/spec/metas.spec.test.mjs</code></span>
         </div>
-      </div>
-      <div class="faixa">
-        <h4>faixa-5 <small>branch <code>spec/aquisicao-processamento-faixa-5</code> · worktree <code>../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-5</code></small></h4>
-        
         <div class="tarefa">
           <span class="tid">T-005</span>
           <span class="ttitulo">Detecção de anomalias</span>
           <span class="meta"><code>claude-sonnet-5</code> · esforço <b>medium</b></span>
           <span class="arquivos"><code>energytrack-fw-3.2/src/proc/anomaly.c</code> <code>energytrack-fw-3.2/src/proc/anomaly.h</code> <code>energytrack-fw-3.2/test/host/test_anomaly.c</code> <code>energytrack-fw-3.2/test/spec/anomalias.spec.test.mjs</code></span>
         </div>
-      </div>
-      <div class="faixa">
-        <h4>faixa-6 <small>branch <code>spec/aquisicao-processamento-faixa-6</code> · worktree <code>../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-6</code></small></h4>
-        
         <div class="tarefa">
           <span class="tid">T-006</span>
           <span class="ttitulo">Processamento integrado e LED de estado</span>
           <span class="meta"><code>claude-sonnet-5</code> · esforço <b>medium</b></span>
           <span class="arquivos"><code>energytrack-fw-3.2/src/proc/processing.c</code> <code>energytrack-fw-3.2/src/proc/processing.h</code> <code>energytrack-fw-3.2/include/energy_config.h</code> <code>energytrack-fw-3.2/test/host/test_processing.c</code> <code>energytrack-fw-3.2/test/spec/processamento.spec.test.mjs</code></span>
         </div>
-      </div></div>
-    </section>
-    <section class="onda">
-      <h3>Onda 3 <small>faixa-7 ∥ faixa-8 ∥ faixa-9 — em paralelo, janelas limpas</small></h3>
-      <div class="grade">
-      <div class="faixa">
-        <h4>faixa-7 <small>branch <code>spec/aquisicao-processamento-faixa-7</code> · worktree <code>../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-7</code></small></h4>
-        
         <div class="tarefa">
           <span class="tid">T-007</span>
           <span class="ttitulo">Monitor de deadline, tabela de tarefas e análise de tempo de resposta</span>
           <span class="meta"><code>claude-sonnet-5</code> · esforço <b>medium</b></span>
           <span class="arquivos"><code>energytrack-fw-3.2/src/rt/rt_monitor.c</code> <code>energytrack-fw-3.2/src/rt/rt_monitor.h</code> <code>energytrack-fw-3.2/src/rt/rt_sched.c</code> <code>energytrack-fw-3.2/src/rt/rt_sched.h</code> <code>energytrack-fw-3.2/src/rt/rt_tasks.c</code> <code>energytrack-fw-3.2/src/rt/rt_tasks.h</code> <code>energytrack-fw-3.2/test/host/test_rt.c</code> <code>energytrack-fw-3.2/test/spec/tempo-real.spec.test.mjs</code></span>
         </div>
-      </div>
-      <div class="faixa">
-        <h4>faixa-8 <small>branch <code>spec/aquisicao-processamento-faixa-8</code> · worktree <code>../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-8</code></small></h4>
-        
         <div class="tarefa">
           <span class="tid">T-008</span>
           <span class="ttitulo">Firmware FreeRTOS: tarefas, filas, ISRs e relatório</span>
           <span class="meta"><code>claude-sonnet-5</code> · esforço <b>medium</b></span>
           <span class="arquivos"><code>energytrack-fw-3.2/app/energytrack_main.c</code> <code>energytrack-fw-3.2/CMakeLists.txt</code> <code>energytrack-fw-3.2/config/FreeRTOSConfig.h</code> <code>energytrack-fw-3.2/test/spec/firmware.spec.test.mjs</code></span>
         </div>
-      </div>
-      <div class="faixa">
-        <h4>faixa-9 <small>branch <code>spec/aquisicao-processamento-faixa-9</code> · worktree <code>../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-9</code></small></h4>
-        
         <div class="tarefa">
           <span class="tid">T-009</span>
           <span class="ttitulo">Diagrama de tarefas, roteiro de bancada e captura do log</span>
           <span class="meta"><code>claude-sonnet-5</code> · esforço <b>medium</b></span>
           <span class="arquivos"><code>energytrack-fw-3.2/docs/diagrama-tarefas.md</code> <code>energytrack-fw-3.2/README.md</code> <code>energytrack-fw-3.2/tools/capturar-serial.ps1</code> <code>energytrack-fw-3.2/test/bench/LEIAME.md</code> <code>energytrack-fw-3.2/test/spec/entregaveis.spec.test.mjs</code></span>
-        </div>
-      </div></div>
+        </div></div></div>
     </section>
-  
   <section class="onda">
     <h3>Branches e commits</h3>
     <ol>
       <li>tudo parte da branch de trabalho <code>spec/aquisicao-processamento</code></li>
-      <li>1 faixa = 1 branch + 1 worktree; 1 tarefa = 1 commit <code>T-xxx aquisicao-processamento: título</code></li>
-      <li>merge <code>--no-ff</code> por faixa, na ordem; conflito interrompe e pede você</li>
+      <li>as tarefas rodam nela mesma, na ordem; 1 tarefa = 1 commit <code>T-xxx aquisicao-processamento: título</code></li>
       <li>gate final: <code>onp-spec verify aquisicao-processamento</code> + <code>onp-spec audit --ci</code> — exit 0 ou não está pronto</li>
     </ol>
   </section>

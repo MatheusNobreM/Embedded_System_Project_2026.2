@@ -387,6 +387,24 @@
       "primeiraVez": "2026-11-02T17:50:30.758Z",
       "ultimaVez": "2026-11-02T17:50:30.758Z",
       "gitRev": null
+    },
+    "VERIFY_FALHOU::aquisicao-processamento::AC-018": {
+      "codigo": "VERIFY_FALHOU",
+      "feature": "aquisicao-processamento",
+      "ref": "AC-018",
+      "ocorrencias": 2,
+      "primeiraVez": "2026-11-02T18:32:06.883Z",
+      "ultimaVez": "2026-11-02T18:46:22.934Z",
+      "gitRev": "a7fd75e"
+    },
+    "AC_SEM_PROVA::aquisicao-processamento::AC-018": {
+      "codigo": "AC_SEM_PROVA",
+      "feature": "aquisicao-processamento",
+      "ref": "AC-018",
+      "ocorrencias": 2,
+      "primeiraVez": "2026-11-02T18:32:17.886Z",
+      "ultimaVez": "2026-11-02T18:46:24.289Z",
+      "gitRev": "a7fd75e"
     }
   }
 }

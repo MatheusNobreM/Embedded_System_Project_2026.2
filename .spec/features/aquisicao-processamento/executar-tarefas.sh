@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# executar-tarefas.sh — gerado por `onp-spec plano aquisicao-processamento` em 2026-11-02 17:51
+# executar-tarefas.sh — gerado por `onp-spec plano aquisicao-processamento` em 2026-11-02 18:08
 # NÃO edite à mão: mudou tasks.md ou a config, regenere o plano.
 #
 # uso:
@@ -14,7 +14,7 @@
 set -u
 set -o pipefail
 
-RUN_ID='energytrack-fw-wps3.2-aquisicao-processamento-mvzk2hqq'
+RUN_ID='energytrack-fw-wps3.2-aquisicao-processamento-mvzkomt3'
 FEATURE='aquisicao-processamento'
 BASE_BRANCH='spec/aquisicao-processamento'
 ENGINE='.claude/skills/onp-spec-driven/scripts/onp-spec.mjs'
@@ -166,15 +166,10 @@ iniciar_resumos() {
   trap 'parar_resumos; node "$ENGINE" resumo "$FEATURE" --gravar >/dev/null 2>&1 || true' EXIT
 }
 
-# ── faixa-1: T-001 ──
-executar_faixa_1() {
-  local WT="$WT_BASE-faixa-1"
-  preparar_worktree 'faixa-1' 'spec/aquisicao-processamento-faixa-1' "$WT" || return 1
-  evento --tipo faixa --faixa 'faixa-1' --estado executando --tentativa "$(tentativa 'faixa-1')"
-  : > "$LOG_DIR/faixa-1.log"
-  (
-    cd "$WT" || exit 9
-    rodar_tarefa 'faixa-1' 'T-001' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
+# ── sequencial T-001 (ordem do tasks.md) ──
+executar_seq_T_001() {
+  info 'sequencial T-001 — Base Pico W pura e ponte de testes com o motor'
+  if rodar_tarefa seq 'T-001' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
 Leia primeiro: .spec/features/aquisicao-processamento/spec.md, .spec/features/aquisicao-processamento/tasks.md e .spec/constituicao.md.
 
 Sua tarefa (somente ela):
@@ -188,23 +183,25 @@ Regras inegociáveis:
 - NUNCA enfraqueça, pule (skip/todo) ou apague um teste para passar — teste pulado não é prova e o audit acusa.
 - Rode os testes localmente com `node --test --test-reporter=tap "energytrack-fw-3.2/test/spec/*.spec.test.mjs"` até passarem.
 - NÃO edite tasks.md, NÃO rode onp-spec verify/audit e NÃO toque em outras tarefas — o orquestrador cuida disso.
-- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium
-  ) >> "$LOG_DIR/faixa-1.log" 2>&1
-  local st=$?
-  mesclar_faixa 'faixa-1' 'spec/aquisicao-processamento-faixa-1' "$WT" "$st" || return 1
-  marcar_concluidas T-001
-  return 0
+- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium >> "$LOG_DIR/seq.log" 2>&1; then
+    # commit de segurança se o agente esqueceu (rastreabilidade > perfeição)
+    if [ -n "$(git status --porcelain)" ]; then
+      git add -A && git commit -q -m 'T-001 aquisicao-processamento: Base Pico W pura e ponte de testes com o motor (auto-commit do plano)'
+    fi
+    marcar_concluidas T-001
+    verde "✔ T-001 concluída"
+    return 0
+  fi
+  vermelho "✘ T-001 falhou (log: $LOG_DIR/seq.log)"
+  amarelo "  reexecute só ela: bash .spec/features/aquisicao-processamento/executar-tarefas.sh --seq T-001"
+  FALHAS="$FALHAS T-001"
+  return 1
 }
 
-# ── faixa-2: T-002 ──
-executar_faixa_2() {
-  local WT="$WT_BASE-faixa-2"
-  preparar_worktree 'faixa-2' 'spec/aquisicao-processamento-faixa-2' "$WT" || return 1
-  evento --tipo faixa --faixa 'faixa-2' --estado executando --tentativa "$(tentativa 'faixa-2')"
-  : > "$LOG_DIR/faixa-2.log"
-  (
-    cd "$WT" || exit 9
-    rodar_tarefa 'faixa-2' 'T-002' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
+# ── sequencial T-002 (ordem do tasks.md) ──
+executar_seq_T_002() {
+  info 'sequencial T-002 — Aquisição: timer de hardware, PZEM pela UART e temperatura por ADC + DMA'
+  if rodar_tarefa seq 'T-002' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
 Leia primeiro: .spec/features/aquisicao-processamento/spec.md, .spec/features/aquisicao-processamento/tasks.md e .spec/constituicao.md.
 
 Sua tarefa (somente ela):
@@ -218,23 +215,25 @@ Regras inegociáveis:
 - NUNCA enfraqueça, pule (skip/todo) ou apague um teste para passar — teste pulado não é prova e o audit acusa.
 - Rode os testes localmente com `node --test --test-reporter=tap "energytrack-fw-3.2/test/spec/*.spec.test.mjs"` até passarem.
 - NÃO edite tasks.md, NÃO rode onp-spec verify/audit e NÃO toque em outras tarefas — o orquestrador cuida disso.
-- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium
-  ) >> "$LOG_DIR/faixa-2.log" 2>&1
-  local st=$?
-  mesclar_faixa 'faixa-2' 'spec/aquisicao-processamento-faixa-2' "$WT" "$st" || return 1
-  marcar_concluidas T-002
-  return 0
+- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium >> "$LOG_DIR/seq.log" 2>&1; then
+    # commit de segurança se o agente esqueceu (rastreabilidade > perfeição)
+    if [ -n "$(git status --porcelain)" ]; then
+      git add -A && git commit -q -m 'T-002 aquisicao-processamento: Aquisição: timer de hardware, PZEM pela UART e temperatura por ADC + DMA (auto-commit do plano)'
+    fi
+    marcar_concluidas T-002
+    verde "✔ T-002 concluída"
+    return 0
+  fi
+  vermelho "✘ T-002 falhou (log: $LOG_DIR/seq.log)"
+  amarelo "  reexecute só ela: bash .spec/features/aquisicao-processamento/executar-tarefas.sh --seq T-002"
+  FALHAS="$FALHAS T-002"
+  return 1
 }
 
-# ── faixa-3: T-003 ──
-executar_faixa_3() {
-  local WT="$WT_BASE-faixa-3"
-  preparar_worktree 'faixa-3' 'spec/aquisicao-processamento-faixa-3' "$WT" || return 1
-  evento --tipo faixa --faixa 'faixa-3' --estado executando --tentativa "$(tentativa 'faixa-3')"
-  : > "$LOG_DIR/faixa-3.log"
-  (
-    cd "$WT" || exit 9
-    rodar_tarefa 'faixa-3' 'T-003' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
+# ── sequencial T-003 (ordem do tasks.md) ──
+executar_seq_T_003() {
+  info 'sequencial T-003 — Potência e energia: integração, recuperação de lacuna e virada do dia'
+  if rodar_tarefa seq 'T-003' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
 Leia primeiro: .spec/features/aquisicao-processamento/spec.md, .spec/features/aquisicao-processamento/tasks.md e .spec/constituicao.md.
 
 Sua tarefa (somente ela):
@@ -248,23 +247,25 @@ Regras inegociáveis:
 - NUNCA enfraqueça, pule (skip/todo) ou apague um teste para passar — teste pulado não é prova e o audit acusa.
 - Rode os testes localmente com `node --test --test-reporter=tap "energytrack-fw-3.2/test/spec/*.spec.test.mjs"` até passarem.
 - NÃO edite tasks.md, NÃO rode onp-spec verify/audit e NÃO toque em outras tarefas — o orquestrador cuida disso.
-- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium
-  ) >> "$LOG_DIR/faixa-3.log" 2>&1
-  local st=$?
-  mesclar_faixa 'faixa-3' 'spec/aquisicao-processamento-faixa-3' "$WT" "$st" || return 1
-  marcar_concluidas T-003
-  return 0
+- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium >> "$LOG_DIR/seq.log" 2>&1; then
+    # commit de segurança se o agente esqueceu (rastreabilidade > perfeição)
+    if [ -n "$(git status --porcelain)" ]; then
+      git add -A && git commit -q -m 'T-003 aquisicao-processamento: Potência e energia: integração, recuperação de lacuna e virada do dia (auto-commit do plano)'
+    fi
+    marcar_concluidas T-003
+    verde "✔ T-003 concluída"
+    return 0
+  fi
+  vermelho "✘ T-003 falhou (log: $LOG_DIR/seq.log)"
+  amarelo "  reexecute só ela: bash .spec/features/aquisicao-processamento/executar-tarefas.sh --seq T-003"
+  FALHAS="$FALHAS T-003"
+  return 1
 }
 
-# ── faixa-4: T-004 ──
-executar_faixa_4() {
-  local WT="$WT_BASE-faixa-4"
-  preparar_worktree 'faixa-4' 'spec/aquisicao-processamento-faixa-4' "$WT" || return 1
-  evento --tipo faixa --faixa 'faixa-4' --estado executando --tentativa "$(tentativa 'faixa-4')"
-  : > "$LOG_DIR/faixa-4.log"
-  (
-    cd "$WT" || exit 9
-    rodar_tarefa 'faixa-4' 'T-004' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
+# ── sequencial T-004 (ordem do tasks.md) ──
+executar_seq_T_004() {
+  info 'sequencial T-004 — Meta diária e limite de potência'
+  if rodar_tarefa seq 'T-004' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
 Leia primeiro: .spec/features/aquisicao-processamento/spec.md, .spec/features/aquisicao-processamento/tasks.md e .spec/constituicao.md.
 
 Sua tarefa (somente ela):
@@ -278,23 +279,25 @@ Regras inegociáveis:
 - NUNCA enfraqueça, pule (skip/todo) ou apague um teste para passar — teste pulado não é prova e o audit acusa.
 - Rode os testes localmente com `node --test --test-reporter=tap "energytrack-fw-3.2/test/spec/*.spec.test.mjs"` até passarem.
 - NÃO edite tasks.md, NÃO rode onp-spec verify/audit e NÃO toque em outras tarefas — o orquestrador cuida disso.
-- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium
-  ) >> "$LOG_DIR/faixa-4.log" 2>&1
-  local st=$?
-  mesclar_faixa 'faixa-4' 'spec/aquisicao-processamento-faixa-4' "$WT" "$st" || return 1
-  marcar_concluidas T-004
-  return 0
+- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium >> "$LOG_DIR/seq.log" 2>&1; then
+    # commit de segurança se o agente esqueceu (rastreabilidade > perfeição)
+    if [ -n "$(git status --porcelain)" ]; then
+      git add -A && git commit -q -m 'T-004 aquisicao-processamento: Meta diária e limite de potência (auto-commit do plano)'
+    fi
+    marcar_concluidas T-004
+    verde "✔ T-004 concluída"
+    return 0
+  fi
+  vermelho "✘ T-004 falhou (log: $LOG_DIR/seq.log)"
+  amarelo "  reexecute só ela: bash .spec/features/aquisicao-processamento/executar-tarefas.sh --seq T-004"
+  FALHAS="$FALHAS T-004"
+  return 1
 }
 
-# ── faixa-5: T-005 ──
-executar_faixa_5() {
-  local WT="$WT_BASE-faixa-5"
-  preparar_worktree 'faixa-5' 'spec/aquisicao-processamento-faixa-5' "$WT" || return 1
-  evento --tipo faixa --faixa 'faixa-5' --estado executando --tentativa "$(tentativa 'faixa-5')"
-  : > "$LOG_DIR/faixa-5.log"
-  (
-    cd "$WT" || exit 9
-    rodar_tarefa 'faixa-5' 'T-005' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
+# ── sequencial T-005 (ordem do tasks.md) ──
+executar_seq_T_005() {
+  info 'sequencial T-005 — Detecção de anomalias'
+  if rodar_tarefa seq 'T-005' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
 Leia primeiro: .spec/features/aquisicao-processamento/spec.md, .spec/features/aquisicao-processamento/tasks.md e .spec/constituicao.md.
 
 Sua tarefa (somente ela):
@@ -308,23 +311,25 @@ Regras inegociáveis:
 - NUNCA enfraqueça, pule (skip/todo) ou apague um teste para passar — teste pulado não é prova e o audit acusa.
 - Rode os testes localmente com `node --test --test-reporter=tap "energytrack-fw-3.2/test/spec/*.spec.test.mjs"` até passarem.
 - NÃO edite tasks.md, NÃO rode onp-spec verify/audit e NÃO toque em outras tarefas — o orquestrador cuida disso.
-- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium
-  ) >> "$LOG_DIR/faixa-5.log" 2>&1
-  local st=$?
-  mesclar_faixa 'faixa-5' 'spec/aquisicao-processamento-faixa-5' "$WT" "$st" || return 1
-  marcar_concluidas T-005
-  return 0
+- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium >> "$LOG_DIR/seq.log" 2>&1; then
+    # commit de segurança se o agente esqueceu (rastreabilidade > perfeição)
+    if [ -n "$(git status --porcelain)" ]; then
+      git add -A && git commit -q -m 'T-005 aquisicao-processamento: Detecção de anomalias (auto-commit do plano)'
+    fi
+    marcar_concluidas T-005
+    verde "✔ T-005 concluída"
+    return 0
+  fi
+  vermelho "✘ T-005 falhou (log: $LOG_DIR/seq.log)"
+  amarelo "  reexecute só ela: bash .spec/features/aquisicao-processamento/executar-tarefas.sh --seq T-005"
+  FALHAS="$FALHAS T-005"
+  return 1
 }
 
-# ── faixa-6: T-006 ──
-executar_faixa_6() {
-  local WT="$WT_BASE-faixa-6"
-  preparar_worktree 'faixa-6' 'spec/aquisicao-processamento-faixa-6' "$WT" || return 1
-  evento --tipo faixa --faixa 'faixa-6' --estado executando --tentativa "$(tentativa 'faixa-6')"
-  : > "$LOG_DIR/faixa-6.log"
-  (
-    cd "$WT" || exit 9
-    rodar_tarefa 'faixa-6' 'T-006' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
+# ── sequencial T-006 (ordem do tasks.md) ──
+executar_seq_T_006() {
+  info 'sequencial T-006 — Processamento integrado e LED de estado'
+  if rodar_tarefa seq 'T-006' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
 Leia primeiro: .spec/features/aquisicao-processamento/spec.md, .spec/features/aquisicao-processamento/tasks.md e .spec/constituicao.md.
 
 Sua tarefa (somente ela):
@@ -338,23 +343,25 @@ Regras inegociáveis:
 - NUNCA enfraqueça, pule (skip/todo) ou apague um teste para passar — teste pulado não é prova e o audit acusa.
 - Rode os testes localmente com `node --test --test-reporter=tap "energytrack-fw-3.2/test/spec/*.spec.test.mjs"` até passarem.
 - NÃO edite tasks.md, NÃO rode onp-spec verify/audit e NÃO toque em outras tarefas — o orquestrador cuida disso.
-- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium
-  ) >> "$LOG_DIR/faixa-6.log" 2>&1
-  local st=$?
-  mesclar_faixa 'faixa-6' 'spec/aquisicao-processamento-faixa-6' "$WT" "$st" || return 1
-  marcar_concluidas T-006
-  return 0
+- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium >> "$LOG_DIR/seq.log" 2>&1; then
+    # commit de segurança se o agente esqueceu (rastreabilidade > perfeição)
+    if [ -n "$(git status --porcelain)" ]; then
+      git add -A && git commit -q -m 'T-006 aquisicao-processamento: Processamento integrado e LED de estado (auto-commit do plano)'
+    fi
+    marcar_concluidas T-006
+    verde "✔ T-006 concluída"
+    return 0
+  fi
+  vermelho "✘ T-006 falhou (log: $LOG_DIR/seq.log)"
+  amarelo "  reexecute só ela: bash .spec/features/aquisicao-processamento/executar-tarefas.sh --seq T-006"
+  FALHAS="$FALHAS T-006"
+  return 1
 }
 
-# ── faixa-7: T-007 ──
-executar_faixa_7() {
-  local WT="$WT_BASE-faixa-7"
-  preparar_worktree 'faixa-7' 'spec/aquisicao-processamento-faixa-7' "$WT" || return 1
-  evento --tipo faixa --faixa 'faixa-7' --estado executando --tentativa "$(tentativa 'faixa-7')"
-  : > "$LOG_DIR/faixa-7.log"
-  (
-    cd "$WT" || exit 9
-    rodar_tarefa 'faixa-7' 'T-007' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
+# ── sequencial T-007 (ordem do tasks.md) ──
+executar_seq_T_007() {
+  info 'sequencial T-007 — Monitor de deadline, tabela de tarefas e análise de tempo de resposta'
+  if rodar_tarefa seq 'T-007' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
 Leia primeiro: .spec/features/aquisicao-processamento/spec.md, .spec/features/aquisicao-processamento/tasks.md e .spec/constituicao.md.
 
 Sua tarefa (somente ela):
@@ -368,23 +375,25 @@ Regras inegociáveis:
 - NUNCA enfraqueça, pule (skip/todo) ou apague um teste para passar — teste pulado não é prova e o audit acusa.
 - Rode os testes localmente com `node --test --test-reporter=tap "energytrack-fw-3.2/test/spec/*.spec.test.mjs"` até passarem.
 - NÃO edite tasks.md, NÃO rode onp-spec verify/audit e NÃO toque em outras tarefas — o orquestrador cuida disso.
-- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium
-  ) >> "$LOG_DIR/faixa-7.log" 2>&1
-  local st=$?
-  mesclar_faixa 'faixa-7' 'spec/aquisicao-processamento-faixa-7' "$WT" "$st" || return 1
-  marcar_concluidas T-007
-  return 0
+- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium >> "$LOG_DIR/seq.log" 2>&1; then
+    # commit de segurança se o agente esqueceu (rastreabilidade > perfeição)
+    if [ -n "$(git status --porcelain)" ]; then
+      git add -A && git commit -q -m 'T-007 aquisicao-processamento: Monitor de deadline, tabela de tarefas e análise de tempo de resposta (auto-commit do plano)'
+    fi
+    marcar_concluidas T-007
+    verde "✔ T-007 concluída"
+    return 0
+  fi
+  vermelho "✘ T-007 falhou (log: $LOG_DIR/seq.log)"
+  amarelo "  reexecute só ela: bash .spec/features/aquisicao-processamento/executar-tarefas.sh --seq T-007"
+  FALHAS="$FALHAS T-007"
+  return 1
 }
 
-# ── faixa-8: T-008 ──
-executar_faixa_8() {
-  local WT="$WT_BASE-faixa-8"
-  preparar_worktree 'faixa-8' 'spec/aquisicao-processamento-faixa-8' "$WT" || return 1
-  evento --tipo faixa --faixa 'faixa-8' --estado executando --tentativa "$(tentativa 'faixa-8')"
-  : > "$LOG_DIR/faixa-8.log"
-  (
-    cd "$WT" || exit 9
-    rodar_tarefa 'faixa-8' 'T-008' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
+# ── sequencial T-008 (ordem do tasks.md) ──
+executar_seq_T_008() {
+  info 'sequencial T-008 — Firmware FreeRTOS: tarefas, filas, ISRs e relatório'
+  if rodar_tarefa seq 'T-008' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
 Leia primeiro: .spec/features/aquisicao-processamento/spec.md, .spec/features/aquisicao-processamento/tasks.md e .spec/constituicao.md.
 
 Sua tarefa (somente ela):
@@ -398,23 +407,25 @@ Regras inegociáveis:
 - NUNCA enfraqueça, pule (skip/todo) ou apague um teste para passar — teste pulado não é prova e o audit acusa.
 - Rode os testes localmente com `node --test --test-reporter=tap "energytrack-fw-3.2/test/spec/*.spec.test.mjs"` até passarem.
 - NÃO edite tasks.md, NÃO rode onp-spec verify/audit e NÃO toque em outras tarefas — o orquestrador cuida disso.
-- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium
-  ) >> "$LOG_DIR/faixa-8.log" 2>&1
-  local st=$?
-  mesclar_faixa 'faixa-8' 'spec/aquisicao-processamento-faixa-8' "$WT" "$st" || return 1
-  marcar_concluidas T-008
-  return 0
+- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium >> "$LOG_DIR/seq.log" 2>&1; then
+    # commit de segurança se o agente esqueceu (rastreabilidade > perfeição)
+    if [ -n "$(git status --porcelain)" ]; then
+      git add -A && git commit -q -m 'T-008 aquisicao-processamento: Firmware FreeRTOS: tarefas, filas, ISRs e relatório (auto-commit do plano)'
+    fi
+    marcar_concluidas T-008
+    verde "✔ T-008 concluída"
+    return 0
+  fi
+  vermelho "✘ T-008 falhou (log: $LOG_DIR/seq.log)"
+  amarelo "  reexecute só ela: bash .spec/features/aquisicao-processamento/executar-tarefas.sh --seq T-008"
+  FALHAS="$FALHAS T-008"
+  return 1
 }
 
-# ── faixa-9: T-009 ──
-executar_faixa_9() {
-  local WT="$WT_BASE-faixa-9"
-  preparar_worktree 'faixa-9' 'spec/aquisicao-processamento-faixa-9' "$WT" || return 1
-  evento --tipo faixa --faixa 'faixa-9' --estado executando --tentativa "$(tentativa 'faixa-9')"
-  : > "$LOG_DIR/faixa-9.log"
-  (
-    cd "$WT" || exit 9
-    rodar_tarefa 'faixa-9' 'T-009' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
+# ── sequencial T-009 (ordem do tasks.md) ──
+executar_seq_T_009() {
+  info 'sequencial T-009 — Diagrama de tarefas, roteiro de bancada e captura do log'
+  if rodar_tarefa seq 'T-009' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
 Leia primeiro: .spec/features/aquisicao-processamento/spec.md, .spec/features/aquisicao-processamento/tasks.md e .spec/constituicao.md.
 
 Sua tarefa (somente ela):
@@ -428,12 +439,19 @@ Regras inegociáveis:
 - NUNCA enfraqueça, pule (skip/todo) ou apague um teste para passar — teste pulado não é prova e o audit acusa.
 - Rode os testes localmente com `node --test --test-reporter=tap "energytrack-fw-3.2/test/spec/*.spec.test.mjs"` até passarem.
 - NÃO edite tasks.md, NÃO rode onp-spec verify/audit e NÃO toque em outras tarefas — o orquestrador cuida disso.
-- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium
-  ) >> "$LOG_DIR/faixa-9.log" 2>&1
-  local st=$?
-  mesclar_faixa 'faixa-9' 'spec/aquisicao-processamento-faixa-9' "$WT" "$st" || return 1
-  marcar_concluidas T-009
-  return 0
+- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium >> "$LOG_DIR/seq.log" 2>&1; then
+    # commit de segurança se o agente esqueceu (rastreabilidade > perfeição)
+    if [ -n "$(git status --porcelain)" ]; then
+      git add -A && git commit -q -m 'T-009 aquisicao-processamento: Diagrama de tarefas, roteiro de bancada e captura do log (auto-commit do plano)'
+    fi
+    marcar_concluidas T-009
+    verde "✔ T-009 concluída"
+    return 0
+  fi
+  vermelho "✘ T-009 falhou (log: $LOG_DIR/seq.log)"
+  amarelo "  reexecute só ela: bash .spec/features/aquisicao-processamento/executar-tarefas.sh --seq T-009"
+  FALHAS="$FALHAS T-009"
+  return 1
 }
 
 # ── gate: quem decide é a máquina ────────────────────────────────────
@@ -489,44 +507,29 @@ executar_tudo() {
   iniciar_resumos
   info "logs em: $LOG_DIR"
   info "resumo geral de andamento: a cada 1 min aqui no terminal (e via: onp-spec resumo)"
-  # onda 1: faixa-1 ∥ faixa-2 ∥ faixa-3
-  info "onda 1: faixa-1 ∥ faixa-2 ∥ faixa-3 — janelas limpas em paralelo"
-  executar_faixa_1 & PID_FAIXA_1=$!
-  executar_faixa_2 & PID_FAIXA_2=$!
-  executar_faixa_3 & PID_FAIXA_3=$!
-  wait "$PID_FAIXA_1" || true
-  wait "$PID_FAIXA_2" || true
-  wait "$PID_FAIXA_3" || true
-  # onda 2: faixa-4 ∥ faixa-5 ∥ faixa-6
-  info "onda 2: faixa-4 ∥ faixa-5 ∥ faixa-6 — janelas limpas em paralelo"
-  executar_faixa_4 & PID_FAIXA_4=$!
-  executar_faixa_5 & PID_FAIXA_5=$!
-  executar_faixa_6 & PID_FAIXA_6=$!
-  wait "$PID_FAIXA_4" || true
-  wait "$PID_FAIXA_5" || true
-  wait "$PID_FAIXA_6" || true
-  # onda 3: faixa-7 ∥ faixa-8 ∥ faixa-9
-  info "onda 3: faixa-7 ∥ faixa-8 ∥ faixa-9 — janelas limpas em paralelo"
-  executar_faixa_7 & PID_FAIXA_7=$!
-  executar_faixa_8 & PID_FAIXA_8=$!
-  executar_faixa_9 & PID_FAIXA_9=$!
-  wait "$PID_FAIXA_7" || true
-  wait "$PID_FAIXA_8" || true
-  wait "$PID_FAIXA_9" || true
+  executar_seq_T_001 || true
+  executar_seq_T_002 || true
+  executar_seq_T_003 || true
+  executar_seq_T_004 || true
+  executar_seq_T_005 || true
+  executar_seq_T_006 || true
+  executar_seq_T_007 || true
+  executar_seq_T_008 || true
+  executar_seq_T_009 || true
   encerrar tudo
 }
 
 listar() {
   echo "execução: $RUN_ID (feature $FEATURE, branch $BASE_BRANCH)"
-  echo "  faixa-1  onda 1  T-001"
-  echo "  faixa-2  onda 1  T-002"
-  echo "  faixa-3  onda 1  T-003"
-  echo "  faixa-4  onda 2  T-004"
-  echo "  faixa-5  onda 2  T-005"
-  echo "  faixa-6  onda 2  T-006"
-  echo "  faixa-7  onda 3  T-007"
-  echo "  faixa-8  onda 3  T-008"
-  echo "  faixa-9  onda 3  T-009"
+  echo "  seq       T-001 (sequencial)"
+  echo "  seq       T-002 (sequencial)"
+  echo "  seq       T-003 (sequencial)"
+  echo "  seq       T-004 (sequencial)"
+  echo "  seq       T-005 (sequencial)"
+  echo "  seq       T-006 (sequencial)"
+  echo "  seq       T-007 (sequencial)"
+  echo "  seq       T-008 (sequencial)"
+  echo "  seq       T-009 (sequencial)"
   echo
   echo "reexecutar uma faixa:    --faixa <id>"
   echo "reexecutar sequencial:   --seq <T-xxx>"
@@ -557,19 +560,19 @@ case "$MODO" in
   gate) COM_GATE=1; iniciar_resumos; encerrar gate ;;
   faixa)
     case "$ALVO" in
-      faixa-1) evento --tipo inicio --escopo "faixa:faixa-1"; iniciar_resumos; executar_faixa_1 || true; encerrar "faixa:faixa-1" ;;
-      faixa-2) evento --tipo inicio --escopo "faixa:faixa-2"; iniciar_resumos; executar_faixa_2 || true; encerrar "faixa:faixa-2" ;;
-      faixa-3) evento --tipo inicio --escopo "faixa:faixa-3"; iniciar_resumos; executar_faixa_3 || true; encerrar "faixa:faixa-3" ;;
-      faixa-4) evento --tipo inicio --escopo "faixa:faixa-4"; iniciar_resumos; executar_faixa_4 || true; encerrar "faixa:faixa-4" ;;
-      faixa-5) evento --tipo inicio --escopo "faixa:faixa-5"; iniciar_resumos; executar_faixa_5 || true; encerrar "faixa:faixa-5" ;;
-      faixa-6) evento --tipo inicio --escopo "faixa:faixa-6"; iniciar_resumos; executar_faixa_6 || true; encerrar "faixa:faixa-6" ;;
-      faixa-7) evento --tipo inicio --escopo "faixa:faixa-7"; iniciar_resumos; executar_faixa_7 || true; encerrar "faixa:faixa-7" ;;
-      faixa-8) evento --tipo inicio --escopo "faixa:faixa-8"; iniciar_resumos; executar_faixa_8 || true; encerrar "faixa:faixa-8" ;;
-      faixa-9) evento --tipo inicio --escopo "faixa:faixa-9"; iniciar_resumos; executar_faixa_9 || true; encerrar "faixa:faixa-9" ;;
       *) falhar "faixa desconhecida: '$ALVO' — veja as disponíveis com --listar" ;;
     esac ;;
   seq)
     case "$ALVO" in
+      T-001) evento --tipo inicio --escopo "seq:T-001"; iniciar_resumos; executar_seq_T_001 || true; encerrar "seq:T-001" ;;
+      T-002) evento --tipo inicio --escopo "seq:T-002"; iniciar_resumos; executar_seq_T_002 || true; encerrar "seq:T-002" ;;
+      T-003) evento --tipo inicio --escopo "seq:T-003"; iniciar_resumos; executar_seq_T_003 || true; encerrar "seq:T-003" ;;
+      T-004) evento --tipo inicio --escopo "seq:T-004"; iniciar_resumos; executar_seq_T_004 || true; encerrar "seq:T-004" ;;
+      T-005) evento --tipo inicio --escopo "seq:T-005"; iniciar_resumos; executar_seq_T_005 || true; encerrar "seq:T-005" ;;
+      T-006) evento --tipo inicio --escopo "seq:T-006"; iniciar_resumos; executar_seq_T_006 || true; encerrar "seq:T-006" ;;
+      T-007) evento --tipo inicio --escopo "seq:T-007"; iniciar_resumos; executar_seq_T_007 || true; encerrar "seq:T-007" ;;
+      T-008) evento --tipo inicio --escopo "seq:T-008"; iniciar_resumos; executar_seq_T_008 || true; encerrar "seq:T-008" ;;
+      T-009) evento --tipo inicio --escopo "seq:T-009"; iniciar_resumos; executar_seq_T_009 || true; encerrar "seq:T-009" ;;
       *) falhar "tarefa sequencial desconhecida: '$ALVO' — veja as disponíveis com --listar" ;;
     esac ;;
 esac

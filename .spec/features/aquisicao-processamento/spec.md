@@ -236,13 +236,13 @@ um diagrama de tarefas fiel ao código, para entregar o WPS 3.1.
 | ASM-002 | Rede de 220 V com as faixas do PRODIST Módulo 8 (adequada 202–231 V; precária 191–202 / 231–233 V; crítica fora disso) | confirmada | Usuário escolheu 220 V (02/11/2026); faixas do PRODIST para 380/220 V |
 | ASM-003 | O ADC adquire o sensor de temperatura interno (ADC4) a 1 kHz, por DMA em ping-pong de 100 amostras | confirmada | Usuário escolheu "Temperatura interna" (02/11/2026) |
 | ASM-004 | A prova de bancada é de 10 min sem nenhum estouro de deadline | confirmada | Usuário escolheu 10 minutos (02/11/2026) |
-| ASM-005 | Meta padrão de 5 kWh/dia e limite de 3000 W sustentado por 10 s, com aviso em 80% | aberta | — |
-| ASM-006 | Deadlines: pzem 500 ms (período 1 s), adc 100 ms (um bloco), proc 50 ms após a amostra; status e report são "soft" e não entram no aceite | aberta | — |
-| ASM-007 | Limiares: frequência 59,5–60,5 Hz, fator de potência 0,92 com carga ≥ 100 W, superaquecimento 70 °C (some abaixo de 65 °C), persistência de 3 leituras para os alertas | aberta | — |
-| ASM-008 | O self-test do WPS 3.2 continua como segundo alvo, adaptado à Pico W como descreve o documento (tarefas pzem, status e report) | aberta | — |
+| ASM-005 | Meta padrão de 5 kWh/dia e limite de 3000 W sustentado por 10 s, com aviso em 80% | confirmada | Confirmada pelo usuário (02/11/2026) |
+| ASM-006 | Deadlines: pzem 500 ms (período 1 s), adc 100 ms (um bloco), proc 50 ms após a amostra; status e report são "soft" e não entram no aceite | confirmada | Confirmada pelo usuário (02/11/2026) |
+| ASM-007 | Limiares: frequência 59,5–60,5 Hz, fator de potência 0,92 com carga ≥ 100 W, superaquecimento 70 °C (some abaixo de 65 °C), persistência de 3 leituras para os alertas | confirmada | Confirmada pelo usuário (02/11/2026) |
+| ASM-008 | O self-test do WPS 3.2 continua como segundo alvo, adaptado à Pico W como descreve o documento (tarefas pzem, status e report) | confirmada | Confirmada pelo usuário (02/11/2026) |
 
 ## Perguntas em aberto
 
 | ID | Pergunta | Status | Resposta |
 |---|---|---|---|
-| Q-001 | A evidência de bancada (log serial com o relatório de tempo real) basta para o professor, ou ele também quer medição externa (analisador lógico/osciloscópio)? | aberta | — |
+| Q-001 | A evidência de bancada (log serial com o relatório de tempo real) basta para o professor, ou ele também quer medição externa (analisador lógico/osciloscópio)? | respondida | O log serial basta (usuário, 02/11/2026) |

@@ -17,7 +17,7 @@ typedef void (*pzem_sleep_fn)(uint32_t ms);
  * Envia a requisição, dorme enquanto a resposta chega na FIFO e decodifica.
  * Tempo máximo: ~25 ms de quadro + PZEM_LINK_MAX_WAIT_MS.
  */
-pzem_parse_result_t pzem_link_read(pzem_sleep_fn sleep_ms, pzem_measurement_t *out);
+pzem_parse_result_t pzem_link_read(pzem_sleep_fn sleep_fn, pzem_measurement_t *out);
 
 #define PZEM_LINK_MAX_WAIT_MS 200u
 

@@ -17,60 +17,88 @@ cmake_minimum_required(VERSION 3.13)
 # Placa: Pico W (CYW43). Precisa vir antes do import do SDK.
 set(PICO_BOARD pico_w CACHE STRING "Board type")
 
-# pico-sdk >= 2.0 (pio_claim_free_sm_and_add_program_for_gpio_range)
 include(pico_sdk_import.cmake)
 
-# FreeRTOS-Kernel (fork raspberrypi/FreeRTOS-Kernel ou >= V11 com porta RP2040)
-if (NOT FREERTOS_KERNEL_PATH AND DEFINED ENV{FREERTOS_KERNEL_PATH})
-    set(FREERTOS_KERNEL_PATH $ENV{FREERTOS_KERNEL_PATH})
+# FreeRTOS-Kernel: -DFREERTOS_KERNEL_PATH, variável de ambiente ou ~/pico/FreeRTOS-Kernel.
+if (NOT FREERTOS_KERNEL_PATH)
+    if (DEFINED ENV{FREERTOS_KERNEL_PATH})
+        set(FREERTOS_KERNEL_PATH $ENV{FREERTOS_KERNEL_PATH})
+    else()
+        file(TO_CMAKE_PATH "${USERHOME}" _et_home)
+        set(FREERTOS_KERNEL_PATH ${_et_home}/pico/FreeRTOS-Kernel)
+    endif()
 endif()
-include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
+set(_et_freertos_import ${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
+if (NOT EXISTS ${_et_freertos_import})
+    message(FATAL_ERROR "FreeRTOS-Kernel nao encontrado em '${FREERTOS_KERNEL_PATH}'. "
+        "Clone com: git clone https://github.com/FreeRTOS/FreeRTOS-Kernel ~/pico/FreeRTOS-Kernel "
+        "ou passe -DFREERTOS_KERNEL_PATH=<caminho>.")
+endif()
+include(${_et_freertos_import})
 
 project(energytrack_fw C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 pico_sdk_init()
 
-# ---------------------------------------------------------------------------
-# Self-test de periféricos (WPS 3.2). No firmware principal, adicione os
-# fontes de src/hal ao alvo existente e reaproveite as mesmas linhas de
-# pico_generate_pio_header / pico_enable_stdio_*.
-# ---------------------------------------------------------------------------
-add_executable(energytrack_selftest
-    app/selftest_main.c
-    src/hal/periph_init.c
-    src/hal/ws2812.c
-    src/hal/oled_probe.c
-    src/hal/adc_shared.c
+set(ET_HAL_COMMON
+    src/hal/board_init.c
     src/hal/pzem_link.c
     src/hal/pzem_modbus.c
 )
 
-pico_generate_pio_header(energytrack_selftest ${CMAKE_CURRENT_LIST_DIR}/src/hal/ws2812.pio)
-
-target_include_directories(energytrack_selftest PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}/include
-    ${CMAKE_CURRENT_LIST_DIR}/src/hal
-    ${CMAKE_CURRENT_LIST_DIR}/config          # FreeRTOSConfig.h
+set(ET_FW_SOURCES
+    app/energytrack_main.c
+    ${ET_HAL_COMMON}
+    src/hal/acq_timer.c
+    src/hal/adc_dma.c
+    src/proc/temp_sensor.c
+    src/proc/energy.c
+    src/proc/goal.c
+    src/proc/anomaly.c
+    src/proc/processing.c
+    src/rt/rt_monitor.c
+    src/rt/rt_tasks.c
 )
 
-target_compile_definitions(energytrack_selftest PRIVATE SELFTEST_USE_CYW43=1)
-target_compile_options(energytrack_selftest PRIVATE -Wall -Wextra)
-
-target_link_libraries(energytrack_selftest
-    pico_stdlib
-    hardware_uart
-    hardware_i2c
-    hardware_pwm
-    hardware_adc
-    hardware_pio
-    hardware_clocks
-    pico_cyw43_arch_none        # firmware de rede usará pico_cyw43_arch_lwip_sys_freertos
-    FreeRTOS-Kernel
-    FreeRTOS-Kernel-Heap4
+set(ET_SELFTEST_SOURCES
+    app/selftest_main.c
+    ${ET_HAL_COMMON}
 )
 
-# stdio SOMENTE por USB: a uart0 (GP0/GP1) pertence ao PZEM.
-pico_enable_stdio_usb(energytrack_selftest 1)
-pico_enable_stdio_uart(energytrack_selftest 0)
+# Avisos rigorosos só nos fontes do projeto: o SDK compila junto, mas não é nosso.
+set_source_files_properties(${ET_FW_SOURCES} ${ET_SELFTEST_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra")
 
-pico_add_extra_outputs(energytrack_selftest)
+# Configuração comum aos dois alvos.
+function(energytrack_target target)
+    target_include_directories(${target} PRIVATE
+        ${CMAKE_CURRENT_LIST_DIR}/include
+        ${CMAKE_CURRENT_LIST_DIR}/src/hal
+        ${CMAKE_CURRENT_LIST_DIR}/src/proc
+        ${CMAKE_CURRENT_LIST_DIR}/src/rt
+        ${CMAKE_CURRENT_LIST_DIR}/config          # FreeRTOSConfig.h
+    )
+    target_link_libraries(${target}
+        pico_stdlib
+        hardware_uart
+        pico_cyw43_arch_none        # só o LED da placa; firmware de rede usará pico_cyw43_arch_lwip_sys_freertos
+        FreeRTOS-Kernel
+        FreeRTOS-Kernel-Heap4
+    )
+    # stdio SOMENTE por USB: a uart0 (GP0/GP1) pertence ao PZEM.
+    pico_enable_stdio_usb(${target} 1)
+    pico_enable_stdio_uart(${target} 0)
+    pico_add_extra_outputs(${target})
+endfunction()
+
+# ---------------------------------------------------------------------------
+# WPS 3.1 — firmware de aquisição (UART, ADC, timer, DMA) e processamento
+# ---------------------------------------------------------------------------
+add_executable(energytrack_fw ${ET_FW_SOURCES})
+energytrack_target(energytrack_fw)
+target_link_libraries(energytrack_fw hardware_adc hardware_dma hardware_irq)
+
+# ---------------------------------------------------------------------------
+# WPS 3.2 — self-test do PZEM, LED e log USB
+# ---------------------------------------------------------------------------
+add_executable(energytrack_selftest ${ET_SELFTEST_SOURCES})
+energytrack_target(energytrack_selftest)

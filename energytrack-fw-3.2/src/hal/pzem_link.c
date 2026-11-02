@@ -12,7 +12,7 @@ static void drain_rx(void)
     }
 }
 
-pzem_parse_result_t pzem_link_read(pzem_sleep_fn sleep_ms, pzem_measurement_t *out)
+pzem_parse_result_t pzem_link_read(pzem_sleep_fn sleep_fn, pzem_measurement_t *out)
 {
     uint8_t req[PZEM_REQ_LEN];
     uint8_t resp[PZEM_RESP_LEN];
@@ -26,7 +26,7 @@ pzem_parse_result_t pzem_link_read(pzem_sleep_fn sleep_ms, pzem_measurement_t *o
      * a tarefa dorme e lê em lotes, sem espera ocupada e sem IRQ de UART. */
     for (uint32_t waited = 0; waited <= PZEM_LINK_MAX_WAIT_MS && got < PZEM_RESP_LEN;
          waited += POLL_STEP_MS) {
-        sleep_ms(POLL_STEP_MS);
+        sleep_fn(POLL_STEP_MS);
         while (got < PZEM_RESP_LEN && uart_is_readable(BOARD_PZEM_UART)) {
             resp[got++] = (uint8_t)uart_getc(BOARD_PZEM_UART);
         }
