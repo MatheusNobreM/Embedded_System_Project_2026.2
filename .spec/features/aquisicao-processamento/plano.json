@@ -1,0 +1,281 @@
+{
+  "runId": "energytrack-fw-wps3.2-aquisicao-processamento-mvzk2hqq",
+  "feature": "aquisicao-processamento",
+  "agent": "claude",
+  "modo": "paralelo",
+  "paralelizar": null,
+  "modeloForcado": null,
+  "esforcoForcado": null,
+  "geradoEm": "2026-11-02 17:51",
+  "branchTrabalho": "spec/aquisicao-processamento",
+  "baseDir": ".spec/features/aquisicao-processamento",
+  "specDir": ".spec",
+  "repoName": "energytrack-fw-wps3.2",
+  "logsDir": "../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-logs",
+  "ondas": [
+    [
+      "faixa-1",
+      "faixa-2",
+      "faixa-3"
+    ],
+    [
+      "faixa-4",
+      "faixa-5",
+      "faixa-6"
+    ],
+    [
+      "faixa-7",
+      "faixa-8",
+      "faixa-9"
+    ]
+  ],
+  "faixas": [
+    {
+      "id": "faixa-1",
+      "branch": "spec/aquisicao-processamento-faixa-1",
+      "worktree": "../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-1",
+      "tarefas": [
+        {
+          "id": "T-001",
+          "titulo": "Base Pico W pura e ponte de testes com o motor",
+          "modelo": "claude-sonnet-5",
+          "esforco": "medium",
+          "arquivos": [
+            "energytrack-fw-3.2/include/board_pins.h",
+            "energytrack-fw-3.2/include/board_resources.h",
+            "energytrack-fw-3.2/src/hal/board_init.c",
+            "energytrack-fw-3.2/src/hal/board_init.h",
+            "energytrack-fw-3.2/app/selftest_main.c",
+            "energytrack-fw-3.2/test/host/tap.h",
+            "energytrack-fw-3.2/test/host/test_pinmap.c",
+            "energytrack-fw-3.2/test/spec/lib/host.mjs",
+            "energytrack-fw-3.2/test/spec/base-picow.spec.test.mjs",
+            "onpspec.config.json",
+            ".spec/constituicao.md"
+          ],
+          "refs": [
+            "US-007",
+            "AC-019"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "faixa-2",
+      "branch": "spec/aquisicao-processamento-faixa-2",
+      "worktree": "../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-2",
+      "tarefas": [
+        {
+          "id": "T-002",
+          "titulo": "Aquisição: timer de hardware, PZEM pela UART e temperatura por ADC + DMA",
+          "modelo": "claude-sonnet-5",
+          "esforco": "medium",
+          "arquivos": [
+            "energytrack-fw-3.2/src/hal/acq_timer.c",
+            "energytrack-fw-3.2/src/hal/acq_timer.h",
+            "energytrack-fw-3.2/src/hal/adc_dma.c",
+            "energytrack-fw-3.2/src/hal/adc_dma.h",
+            "energytrack-fw-3.2/src/hal/pzem_link.c",
+            "energytrack-fw-3.2/src/hal/pzem_link.h",
+            "energytrack-fw-3.2/src/hal/pzem_modbus.c",
+            "energytrack-fw-3.2/src/hal/pzem_modbus.h",
+            "energytrack-fw-3.2/src/proc/temp_sensor.c",
+            "energytrack-fw-3.2/src/proc/temp_sensor.h",
+            "energytrack-fw-3.2/test/host/test_temp.c",
+            "energytrack-fw-3.2/test/spec/aquisicao.spec.test.mjs"
+          ],
+          "refs": [
+            "US-001",
+            "US-002",
+            "AC-003"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "faixa-3",
+      "branch": "spec/aquisicao-processamento-faixa-3",
+      "worktree": "../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-3",
+      "tarefas": [
+        {
+          "id": "T-003",
+          "titulo": "Potência e energia: integração, recuperação de lacuna e virada do dia",
+          "modelo": "claude-sonnet-5",
+          "esforco": "medium",
+          "arquivos": [
+            "energytrack-fw-3.2/src/proc/energy.c",
+            "energytrack-fw-3.2/src/proc/energy.h",
+            "energytrack-fw-3.2/test/host/test_energy.c",
+            "energytrack-fw-3.2/test/spec/energia.spec.test.mjs"
+          ],
+          "refs": [
+            "US-003",
+            "AC-005",
+            "AC-006",
+            "AC-007"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "faixa-4",
+      "branch": "spec/aquisicao-processamento-faixa-4",
+      "worktree": "../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-4",
+      "tarefas": [
+        {
+          "id": "T-004",
+          "titulo": "Meta diária e limite de potência",
+          "modelo": "claude-sonnet-5",
+          "esforco": "medium",
+          "arquivos": [
+            "energytrack-fw-3.2/src/proc/goal.c",
+            "energytrack-fw-3.2/src/proc/goal.h",
+            "energytrack-fw-3.2/test/host/test_goal.c",
+            "energytrack-fw-3.2/test/spec/metas.spec.test.mjs"
+          ],
+          "refs": [
+            "US-004",
+            "AC-008",
+            "AC-009",
+            "AC-010"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "faixa-5",
+      "branch": "spec/aquisicao-processamento-faixa-5",
+      "worktree": "../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-5",
+      "tarefas": [
+        {
+          "id": "T-005",
+          "titulo": "Detecção de anomalias",
+          "modelo": "claude-sonnet-5",
+          "esforco": "medium",
+          "arquivos": [
+            "energytrack-fw-3.2/src/proc/anomaly.c",
+            "energytrack-fw-3.2/src/proc/anomaly.h",
+            "energytrack-fw-3.2/test/host/test_anomaly.c",
+            "energytrack-fw-3.2/test/spec/anomalias.spec.test.mjs"
+          ],
+          "refs": [
+            "US-005",
+            "AC-002",
+            "AC-004",
+            "AC-011",
+            "AC-012",
+            "AC-013",
+            "AC-014"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "faixa-6",
+      "branch": "spec/aquisicao-processamento-faixa-6",
+      "worktree": "../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-6",
+      "tarefas": [
+        {
+          "id": "T-006",
+          "titulo": "Processamento integrado e LED de estado",
+          "modelo": "claude-sonnet-5",
+          "esforco": "medium",
+          "arquivos": [
+            "energytrack-fw-3.2/src/proc/processing.c",
+            "energytrack-fw-3.2/src/proc/processing.h",
+            "energytrack-fw-3.2/include/energy_config.h",
+            "energytrack-fw-3.2/test/host/test_processing.c",
+            "energytrack-fw-3.2/test/spec/processamento.spec.test.mjs"
+          ],
+          "refs": [
+            "US-001",
+            "US-005",
+            "AC-001",
+            "AC-015"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "faixa-7",
+      "branch": "spec/aquisicao-processamento-faixa-7",
+      "worktree": "../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-7",
+      "tarefas": [
+        {
+          "id": "T-007",
+          "titulo": "Monitor de deadline, tabela de tarefas e análise de tempo de resposta",
+          "modelo": "claude-sonnet-5",
+          "esforco": "medium",
+          "arquivos": [
+            "energytrack-fw-3.2/src/rt/rt_monitor.c",
+            "energytrack-fw-3.2/src/rt/rt_monitor.h",
+            "energytrack-fw-3.2/src/rt/rt_sched.c",
+            "energytrack-fw-3.2/src/rt/rt_sched.h",
+            "energytrack-fw-3.2/src/rt/rt_tasks.c",
+            "energytrack-fw-3.2/src/rt/rt_tasks.h",
+            "energytrack-fw-3.2/test/host/test_rt.c",
+            "energytrack-fw-3.2/test/spec/tempo-real.spec.test.mjs"
+          ],
+          "refs": [
+            "US-006",
+            "AC-016",
+            "AC-017"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "faixa-8",
+      "branch": "spec/aquisicao-processamento-faixa-8",
+      "worktree": "../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-8",
+      "tarefas": [
+        {
+          "id": "T-008",
+          "titulo": "Firmware FreeRTOS: tarefas, filas, ISRs e relatório",
+          "modelo": "claude-sonnet-5",
+          "esforco": "medium",
+          "arquivos": [
+            "energytrack-fw-3.2/app/energytrack_main.c",
+            "energytrack-fw-3.2/CMakeLists.txt",
+            "energytrack-fw-3.2/config/FreeRTOSConfig.h",
+            "energytrack-fw-3.2/test/spec/firmware.spec.test.mjs"
+          ],
+          "refs": [
+            "US-006",
+            "US-007",
+            "AC-020"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "faixa-9",
+      "branch": "spec/aquisicao-processamento-faixa-9",
+      "worktree": "../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-9",
+      "tarefas": [
+        {
+          "id": "T-009",
+          "titulo": "Diagrama de tarefas, roteiro de bancada e captura do log",
+          "modelo": "claude-sonnet-5",
+          "esforco": "medium",
+          "arquivos": [
+            "energytrack-fw-3.2/docs/diagrama-tarefas.md",
+            "energytrack-fw-3.2/README.md",
+            "energytrack-fw-3.2/tools/capturar-serial.ps1",
+            "energytrack-fw-3.2/test/bench/LEIAME.md",
+            "energytrack-fw-3.2/test/spec/entregaveis.spec.test.mjs"
+          ],
+          "refs": [
+            "US-006",
+            "US-007",
+            "AC-018",
+            "AC-021"
+          ]
+        }
+      ]
+    }
+  ],
+  "sequenciais": [],
+  "concluidas": [],
+  "avisos": []
+}

@@ -1,0 +1,27 @@
+{
+  "testCommand": "node --test --test-reporter=tap \"energytrack-fw-3.2/test/spec/*.spec.test.mjs\"",
+  "reporter": "tap",
+  "testGlobs": [
+    "energytrack-fw-3.2/test/**"
+  ],
+  "srcGlobs": [
+    "energytrack-fw-3.2/src/**",
+    "energytrack-fw-3.2/app/**",
+    "energytrack-fw-3.2/include/**",
+    "energytrack-fw-3.2/config/**",
+    "energytrack-fw-3.2/docs/**",
+    "energytrack-fw-3.2/tools/**",
+    "energytrack-fw-3.2/CMakeLists.txt"
+  ],
+  "ignoreGlobs": [
+    "node_modules/**",
+    ".git/**",
+    "dist/**",
+    "build/**",
+    "coverage/**",
+    ".spec/**",
+    ".claude/**",
+    "energytrack-fw-3.2/build/**",
+    "energytrack-fw-3.2/build-host/**"
+  ]
+}
