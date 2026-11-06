@@ -14,10 +14,10 @@
       "codigo": "ARQUIVO_INEXISTENTE",
       "feature": "aquisicao-processamento",
       "ref": "T-001",
-      "ocorrencias": 1,
+      "ocorrencias": 2,
       "primeiraVez": "2026-11-02T17:50:30.757Z",
-      "ultimaVez": "2026-11-02T17:50:30.757Z",
-      "gitRev": null
+      "ultimaVez": "2026-11-06T00:40:09.839Z",
+      "gitRev": "04e1190"
     },
     "AC_SEM_TASK::aquisicao-processamento::AC-003": {
       "codigo": "AC_SEM_TASK",
@@ -392,19 +392,73 @@
       "codigo": "VERIFY_FALHOU",
       "feature": "aquisicao-processamento",
       "ref": "AC-018",
-      "ocorrencias": 2,
+      "ocorrencias": 4,
       "primeiraVez": "2026-11-02T18:32:06.883Z",
-      "ultimaVez": "2026-11-02T18:46:22.934Z",
-      "gitRev": "a7fd75e"
+      "ultimaVez": "2026-11-06T01:28:34.482Z",
+      "gitRev": "0e770e6"
     },
     "AC_SEM_PROVA::aquisicao-processamento::AC-018": {
       "codigo": "AC_SEM_PROVA",
       "feature": "aquisicao-processamento",
       "ref": "AC-018",
-      "ocorrencias": 2,
+      "ocorrencias": 6,
       "primeiraVez": "2026-11-02T18:32:17.886Z",
-      "ultimaVez": "2026-11-02T18:46:24.289Z",
-      "gitRev": "a7fd75e"
+      "ultimaVez": "2026-11-06T01:28:44.653Z",
+      "gitRev": "0e770e6"
+    },
+    "ARQUIVO_INEXISTENTE::aquisicao-processamento::T-010": {
+      "codigo": "ARQUIVO_INEXISTENTE",
+      "feature": "aquisicao-processamento",
+      "ref": "T-010",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-11-06T00:40:09.840Z",
+      "ultimaVez": "2026-11-06T00:40:09.840Z",
+      "gitRev": "04e1190"
+    },
+    "ARQUIVO_INEXISTENTE::aquisicao-processamento::T-011": {
+      "codigo": "ARQUIVO_INEXISTENTE",
+      "feature": "aquisicao-processamento",
+      "ref": "T-011",
+      "ocorrencias": 2,
+      "primeiraVez": "2026-11-06T00:40:09.840Z",
+      "ultimaVez": "2026-11-06T00:40:09.840Z",
+      "gitRev": "04e1190"
+    },
+    "ARQUIVO_INEXISTENTE::aquisicao-processamento::T-012": {
+      "codigo": "ARQUIVO_INEXISTENTE",
+      "feature": "aquisicao-processamento",
+      "ref": "T-012",
+      "ocorrencias": 3,
+      "primeiraVez": "2026-11-06T00:40:09.840Z",
+      "ultimaVez": "2026-11-06T00:40:09.840Z",
+      "gitRev": "04e1190"
+    },
+    "ARQUIVO_ORFAO::—::energytrack-fw-3.2/config/FreeRTOSConfig.h": {
+      "codigo": "ARQUIVO_ORFAO",
+      "feature": "—",
+      "ref": "energytrack-fw-3.2/config/FreeRTOSConfig.h",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-11-06T00:40:09.840Z",
+      "ultimaVez": "2026-11-06T00:40:09.840Z",
+      "gitRev": "04e1190"
+    },
+    "VERIFY_OBSOLETO::aquisicao-processamento::—": {
+      "codigo": "VERIFY_OBSOLETO",
+      "feature": "aquisicao-processamento",
+      "ref": "—",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-11-06T01:19:33.370Z",
+      "ultimaVez": "2026-11-06T01:19:33.370Z",
+      "gitRev": "d66fe12"
+    },
+    "VERIFY_FALHOU::aquisicao-processamento::AC-020": {
+      "codigo": "VERIFY_FALHOU",
+      "feature": "aquisicao-processamento",
+      "ref": "AC-020",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-11-06T01:25:55.298Z",
+      "ultimaVez": "2026-11-06T01:25:55.298Z",
+      "gitRev": "08df242"
     }
   }
 }

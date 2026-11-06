@@ -1,12 +1,12 @@
 {
-  "runId": "energytrack-fw-wps3.2-aquisicao-processamento-mw48zm9r",
+  "runId": "energytrack-fw-wps3.2-aquisicao-processamento-mw4aqisc",
   "feature": "aquisicao-processamento",
   "agent": "claude",
   "modo": "paralelo",
   "paralelizar": null,
   "modeloForcado": null,
   "esforcoForcado": null,
-  "geradoEm": "2026-11-06 00:40",
+  "geradoEm": "2026-11-06 01:29",
   "branchTrabalho": "spec/aquisicao-processamento",
   "baseDir": ".spec/features/aquisicao-processamento",
   "specDir": ".spec",
@@ -14,12 +14,7 @@
   "logsDir": "../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-logs",
   "ondas": [
     [
-      "faixa-1",
-      "faixa-2",
-      "faixa-3"
-    ],
-    [
-      "faixa-4"
+      "faixa-1"
     ]
   ],
   "faixas": [
@@ -48,116 +43,6 @@
             "AC-018",
             "AC-021"
           ]
-        },
-        {
-          "id": "T-013",
-          "titulo": "Tempo real e entregáveis no ESP32",
-          "modelo": "claude-sonnet-5",
-          "esforco": "medium",
-          "arquivos": [
-            "energytrack-fw-3.2/src/rt/rt_tasks.c",
-            "energytrack-fw-3.2/src/rt/rt_tasks.h",
-            "energytrack-fw-3.2/docs/diagrama-tarefas.md",
-            "energytrack-fw-3.2/docs/como-funciona.md",
-            "energytrack-fw-3.2/README.md",
-            "energytrack-fw-3.2/tools/capturar-serial.ps1",
-            "energytrack-fw-3.2/test/bench/LEIAME.md"
-          ],
-          "refs": [
-            "US-006",
-            "US-007",
-            "AC-017",
-            "AC-021"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "faixa-2",
-      "branch": "spec/aquisicao-processamento-faixa-2",
-      "worktree": "../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-2",
-      "tarefas": [
-        {
-          "id": "T-010",
-          "titulo": "Base ESP32: mapa de pinos, recursos e inicialização da placa",
-          "modelo": "claude-sonnet-5",
-          "esforco": "medium",
-          "arquivos": [
-            "energytrack-fw-3.2/include/board_pins.h",
-            "energytrack-fw-3.2/include/board_resources.h",
-            "energytrack-fw-3.2/src/hal/board_init.c",
-            "energytrack-fw-3.2/src/hal/board_init.h",
-            "energytrack-fw-3.2/test/host/test_pinmap.c",
-            "energytrack-fw-3.2/test/spec/base-esp32.spec.test.mjs",
-            ".spec/constituicao.md"
-          ],
-          "refs": [
-            "US-007",
-            "AC-019"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "faixa-3",
-      "branch": "spec/aquisicao-processamento-faixa-3",
-      "worktree": "../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-3",
-      "tarefas": [
-        {
-          "id": "T-011",
-          "titulo": "Aquisição no ESP32: gptimer, PZEM pela UART2 e LM35 por ADC contínuo + DMA",
-          "modelo": "claude-sonnet-5",
-          "esforco": "high",
-          "arquivos": [
-            "energytrack-fw-3.2/src/hal/acq_timer.c",
-            "energytrack-fw-3.2/src/hal/acq_timer.h",
-            "energytrack-fw-3.2/src/hal/adc_dma.c",
-            "energytrack-fw-3.2/src/hal/adc_dma.h",
-            "energytrack-fw-3.2/src/hal/adc_frame.c",
-            "energytrack-fw-3.2/src/hal/adc_frame.h",
-            "energytrack-fw-3.2/src/hal/pzem_link.c",
-            "energytrack-fw-3.2/src/hal/pzem_link.h",
-            "energytrack-fw-3.2/src/proc/temp_sensor.c",
-            "energytrack-fw-3.2/src/proc/temp_sensor.h",
-            "energytrack-fw-3.2/test/host/test_temp.c",
-            "energytrack-fw-3.2/test/spec/aquisicao.spec.test.mjs"
-          ],
-          "refs": [
-            "US-001",
-            "US-002",
-            "AC-003"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "faixa-4",
-      "branch": "spec/aquisicao-processamento-faixa-4",
-      "worktree": "../onp-worktrees/energytrack-fw-wps3.2-aquisicao-processamento-faixa-4",
-      "tarefas": [
-        {
-          "id": "T-012",
-          "titulo": "Firmware e self-test no ESP-IDF, build pelo PlatformIO",
-          "modelo": "claude-sonnet-5",
-          "esforco": "high",
-          "arquivos": [
-            "energytrack-fw-3.2/app/energytrack_main.c",
-            "energytrack-fw-3.2/app/selftest_main.c",
-            "energytrack-fw-3.2/platformio.ini",
-            "energytrack-fw-3.2/CMakeLists.txt",
-            "energytrack-fw-3.2/src/CMakeLists.txt",
-            "energytrack-fw-3.2/sdkconfig.defaults",
-            "energytrack-fw-3.2/.gitignore",
-            "energytrack-fw-3.2/.vscode/extensions.json",
-            "energytrack-fw-3.2/test/spec/firmware.spec.test.mjs",
-            "onpspec.config.json",
-            ".vscode/settings.json"
-          ],
-          "refs": [
-            "US-006",
-            "US-007",
-            "AC-020"
-          ]
         }
       ]
     }
@@ -171,7 +56,11 @@
     "T-005",
     "T-006",
     "T-007",
-    "T-008"
+    "T-008",
+    "T-010",
+    "T-011",
+    "T-012",
+    "T-013"
   ],
   "avisos": [
     "T-009 está [em-andamento] — entrou no plano; se já houver trabalho local, commite antes de executar"

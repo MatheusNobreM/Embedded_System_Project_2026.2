@@ -1,7 +1,7 @@
 {
   "feature": "aquisicao-processamento",
-  "timestamp": "2026-11-02T18:46:22.844Z",
-  "gitRev": "a7fd75e",
+  "timestamp": "2026-11-06T01:28:34.412Z",
+  "gitRev": "0e770e6",
   "command": "node --test --test-reporter=tap \"energytrack-fw-3.2/test/spec/*.spec.test.mjs\"",
   "reporter": "tap",
   "exitCode": 1,
@@ -24,7 +24,7 @@
     },
     "AC-004": {
       "status": "pass",
-      "testName": "@spec:AC-004 — superaquecimento da placa vira alerta",
+      "testName": "@spec:AC-004 — superaquecimento do quadro (LM35) vira alerta",
       "method": "tap"
     },
     "AC-005": {
@@ -99,7 +99,7 @@
     },
     "AC-019": {
       "status": "pass",
-      "testName": "@spec:AC-019 — mapa de pinos só com o que existe na Pico W + PZEM",
+      "testName": "@spec:AC-019 — mapa de pinos só com o que existe no ESP32 DevKit + PZEM + LM35",
       "method": "tap"
     },
     "AC-020": {

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# executar-tarefas.sh — gerado por `onp-spec plano aquisicao-processamento` em 2026-11-06 00:40
+# executar-tarefas.sh — gerado por `onp-spec plano aquisicao-processamento` em 2026-11-06 01:29
 # NÃO edite à mão: mudou tasks.md ou a config, regenere o plano.
 #
 # uso:
@@ -14,7 +14,7 @@
 set -u
 set -o pipefail
 
-RUN_ID='energytrack-fw-wps3.2-aquisicao-processamento-mw48zm9r'
+RUN_ID='energytrack-fw-wps3.2-aquisicao-processamento-mw4aqisc'
 FEATURE='aquisicao-processamento'
 BASE_BRANCH='spec/aquisicao-processamento'
 ENGINE='.claude/skills/onp-spec-driven/scripts/onp-spec.mjs'
@@ -166,7 +166,7 @@ iniciar_resumos() {
   trap 'parar_resumos; node "$ENGINE" resumo "$FEATURE" --gravar >/dev/null 2>&1 || true' EXIT
 }
 
-# ── faixa-1: T-009 T-013 ──
+# ── faixa-1: T-009 ──
 executar_faixa_1() {
   local WT="$WT_BASE-faixa-1"
   preparar_worktree 'faixa-1' 'spec/aquisicao-processamento-faixa-1' "$WT" || return 1
@@ -188,116 +188,11 @@ Regras inegociáveis:
 - NUNCA enfraqueça, pule (skip/todo) ou apague um teste para passar — teste pulado não é prova e o audit acusa.
 - Rode os testes localmente com `node --test --test-reporter=tap "energytrack-fw-3.2/test/spec/*.spec.test.mjs"` até passarem.
 - NÃO edite tasks.md, NÃO rode onp-spec verify/audit e NÃO toque em outras tarefas — o orquestrador cuida disso.
-- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium &&
-    rodar_tarefa 'faixa-1' 'T-013' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
-Leia primeiro: .spec/features/aquisicao-processamento/spec.md, .spec/features/aquisicao-processamento/tasks.md e .spec/constituicao.md.
-
-Sua tarefa (somente ela):
-T-013 — "Tempo real e entregáveis no ESP32"
-  critérios/refs: AC-017 (Análise de tempo de resposta prova que as tarefas cabem), AC-021 (Diagrama de tarefas confere com o código)
-  arquivos permitidos (e seus testes): energytrack-fw-3.2/src/rt/rt_tasks.c, energytrack-fw-3.2/src/rt/rt_tasks.h, energytrack-fw-3.2/docs/diagrama-tarefas.md, energytrack-fw-3.2/docs/como-funciona.md, energytrack-fw-3.2/README.md, energytrack-fw-3.2/tools/capturar-serial.ps1, energytrack-fw-3.2/test/bench/LEIAME.md
-  mensagem de commit: "T-013 aquisicao-processamento: Tempo real e entregáveis no ESP32"
-
-Regras inegociáveis:
-- Todo critério de aceite referenciado vira teste com @spec:AC-xxx no título.
-- NUNCA enfraqueça, pule (skip/todo) ou apague um teste para passar — teste pulado não é prova e o audit acusa.
-- Rode os testes localmente com `node --test --test-reporter=tap "energytrack-fw-3.2/test/spec/*.spec.test.mjs"` até passarem.
-- NÃO edite tasks.md, NÃO rode onp-spec verify/audit e NÃO toque em outras tarefas — o orquestrador cuida disso.
 - Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium
   ) >> "$LOG_DIR/faixa-1.log" 2>&1
   local st=$?
   mesclar_faixa 'faixa-1' 'spec/aquisicao-processamento-faixa-1' "$WT" "$st" || return 1
-  marcar_concluidas T-009 T-013
-  return 0
-}
-
-# ── faixa-2: T-010 ──
-executar_faixa_2() {
-  local WT="$WT_BASE-faixa-2"
-  preparar_worktree 'faixa-2' 'spec/aquisicao-processamento-faixa-2' "$WT" || return 1
-  evento --tipo faixa --faixa 'faixa-2' --estado executando --tentativa "$(tentativa 'faixa-2')"
-  : > "$LOG_DIR/faixa-2.log"
-  (
-    cd "$WT" || exit 9
-    rodar_tarefa 'faixa-2' 'T-010' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
-Leia primeiro: .spec/features/aquisicao-processamento/spec.md, .spec/features/aquisicao-processamento/tasks.md e .spec/constituicao.md.
-
-Sua tarefa (somente ela):
-T-010 — "Base ESP32: mapa de pinos, recursos e inicialização da placa"
-  critérios/refs: AC-019 (Mapa de pinos só com o que existe no ESP32 DevKit + PZEM + LM35)
-  arquivos permitidos (e seus testes): energytrack-fw-3.2/include/board_pins.h, energytrack-fw-3.2/include/board_resources.h, energytrack-fw-3.2/src/hal/board_init.c, energytrack-fw-3.2/src/hal/board_init.h, energytrack-fw-3.2/test/host/test_pinmap.c, energytrack-fw-3.2/test/spec/base-esp32.spec.test.mjs, .spec/constituicao.md
-  mensagem de commit: "T-010 aquisicao-processamento: Base ESP32: mapa de pinos, recursos e inicialização da placa"
-
-Regras inegociáveis:
-- Todo critério de aceite referenciado vira teste com @spec:AC-xxx no título.
-- NUNCA enfraqueça, pule (skip/todo) ou apague um teste para passar — teste pulado não é prova e o audit acusa.
-- Rode os testes localmente com `node --test --test-reporter=tap "energytrack-fw-3.2/test/spec/*.spec.test.mjs"` até passarem.
-- NÃO edite tasks.md, NÃO rode onp-spec verify/audit e NÃO toque em outras tarefas — o orquestrador cuida disso.
-- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' medium
-  ) >> "$LOG_DIR/faixa-2.log" 2>&1
-  local st=$?
-  mesclar_faixa 'faixa-2' 'spec/aquisicao-processamento-faixa-2' "$WT" "$st" || return 1
-  marcar_concluidas T-010
-  return 0
-}
-
-# ── faixa-3: T-011 ──
-executar_faixa_3() {
-  local WT="$WT_BASE-faixa-3"
-  preparar_worktree 'faixa-3' 'spec/aquisicao-processamento-faixa-3' "$WT" || return 1
-  evento --tipo faixa --faixa 'faixa-3' --estado executando --tentativa "$(tentativa 'faixa-3')"
-  : > "$LOG_DIR/faixa-3.log"
-  (
-    cd "$WT" || exit 9
-    rodar_tarefa 'faixa-3' 'T-011' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
-Leia primeiro: .spec/features/aquisicao-processamento/spec.md, .spec/features/aquisicao-processamento/tasks.md e .spec/constituicao.md.
-
-Sua tarefa (somente ela):
-T-011 — "Aquisição no ESP32: gptimer, PZEM pela UART2 e LM35 por ADC contínuo + DMA"
-  critérios/refs: AC-003 (Bloco de amostras do ADC vira temperatura em °C)
-  arquivos permitidos (e seus testes): energytrack-fw-3.2/src/hal/acq_timer.c, energytrack-fw-3.2/src/hal/acq_timer.h, energytrack-fw-3.2/src/hal/adc_dma.c, energytrack-fw-3.2/src/hal/adc_dma.h, energytrack-fw-3.2/src/hal/adc_frame.c, energytrack-fw-3.2/src/hal/adc_frame.h, energytrack-fw-3.2/src/hal/pzem_link.c, energytrack-fw-3.2/src/hal/pzem_link.h, energytrack-fw-3.2/src/proc/temp_sensor.c, energytrack-fw-3.2/src/proc/temp_sensor.h, energytrack-fw-3.2/test/host/test_temp.c, energytrack-fw-3.2/test/spec/aquisicao.spec.test.mjs
-  mensagem de commit: "T-011 aquisicao-processamento: Aquisição no ESP32: gptimer, PZEM pela UART2 e LM35 por ADC contínuo + DMA"
-
-Regras inegociáveis:
-- Todo critério de aceite referenciado vira teste com @spec:AC-xxx no título.
-- NUNCA enfraqueça, pule (skip/todo) ou apague um teste para passar — teste pulado não é prova e o audit acusa.
-- Rode os testes localmente com `node --test --test-reporter=tap "energytrack-fw-3.2/test/spec/*.spec.test.mjs"` até passarem.
-- NÃO edite tasks.md, NÃO rode onp-spec verify/audit e NÃO toque em outras tarefas — o orquestrador cuida disso.
-- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' high
-  ) >> "$LOG_DIR/faixa-3.log" 2>&1
-  local st=$?
-  mesclar_faixa 'faixa-3' 'spec/aquisicao-processamento-faixa-3' "$WT" "$st" || return 1
-  marcar_concluidas T-011
-  return 0
-}
-
-# ── faixa-4: T-012 ──
-executar_faixa_4() {
-  local WT="$WT_BASE-faixa-4"
-  preparar_worktree 'faixa-4' 'spec/aquisicao-processamento-faixa-4' "$WT" || return 1
-  evento --tipo faixa --faixa 'faixa-4' --estado executando --tentativa "$(tentativa 'faixa-4')"
-  : > "$LOG_DIR/faixa-4.log"
-  (
-    cd "$WT" || exit 9
-    rodar_tarefa 'faixa-4' 'T-012' 'Você executa UMA tarefa da feature "aquisicao-processamento" (fluxo onp-spec, spec-anchored).
-Leia primeiro: .spec/features/aquisicao-processamento/spec.md, .spec/features/aquisicao-processamento/tasks.md e .spec/constituicao.md.
-
-Sua tarefa (somente ela):
-T-012 — "Firmware e self-test no ESP-IDF, build pelo PlatformIO"
-  critérios/refs: AC-020 (Firmware compila sem avisos)
-  arquivos permitidos (e seus testes): energytrack-fw-3.2/app/energytrack_main.c, energytrack-fw-3.2/app/selftest_main.c, energytrack-fw-3.2/platformio.ini, energytrack-fw-3.2/CMakeLists.txt, energytrack-fw-3.2/src/CMakeLists.txt, energytrack-fw-3.2/sdkconfig.defaults, energytrack-fw-3.2/.gitignore, energytrack-fw-3.2/.vscode/extensions.json, energytrack-fw-3.2/test/spec/firmware.spec.test.mjs, onpspec.config.json, .vscode/settings.json
-  mensagem de commit: "T-012 aquisicao-processamento: Firmware e self-test no ESP-IDF, build pelo PlatformIO"
-
-Regras inegociáveis:
-- Todo critério de aceite referenciado vira teste com @spec:AC-xxx no título.
-- NUNCA enfraqueça, pule (skip/todo) ou apague um teste para passar — teste pulado não é prova e o audit acusa.
-- Rode os testes localmente com `node --test --test-reporter=tap "energytrack-fw-3.2/test/spec/*.spec.test.mjs"` até passarem.
-- NÃO edite tasks.md, NÃO rode onp-spec verify/audit e NÃO toque em outras tarefas — o orquestrador cuida disso.
-- Ao final de CADA tarefa: `git add` só no que você tocou e um commit próprio.' 'claude-sonnet-5' high
-  ) >> "$LOG_DIR/faixa-4.log" 2>&1
-  local st=$?
-  mesclar_faixa 'faixa-4' 'spec/aquisicao-processamento-faixa-4' "$WT" "$st" || return 1
-  marcar_concluidas T-012
+  marcar_concluidas T-009
   return 0
 }
 
@@ -354,27 +249,16 @@ executar_tudo() {
   iniciar_resumos
   info "logs em: $LOG_DIR"
   info "resumo geral de andamento: a cada 1 min aqui no terminal (e via: onp-spec resumo)"
-  # onda 1: faixa-1 ∥ faixa-2 ∥ faixa-3
-  info "onda 1: faixa-1 ∥ faixa-2 ∥ faixa-3 — janelas limpas em paralelo"
+  # onda 1: faixa-1
+  info "onda 1: faixa-1 — janelas limpas em paralelo"
   executar_faixa_1 & PID_FAIXA_1=$!
-  executar_faixa_2 & PID_FAIXA_2=$!
-  executar_faixa_3 & PID_FAIXA_3=$!
   wait "$PID_FAIXA_1" || true
-  wait "$PID_FAIXA_2" || true
-  wait "$PID_FAIXA_3" || true
-  # onda 2: faixa-4
-  info "onda 2: faixa-4 — janelas limpas em paralelo"
-  executar_faixa_4 & PID_FAIXA_4=$!
-  wait "$PID_FAIXA_4" || true
   encerrar tudo
 }
 
 listar() {
   echo "execução: $RUN_ID (feature $FEATURE, branch $BASE_BRANCH)"
-  echo "  faixa-1  onda 1  T-009, T-013"
-  echo "  faixa-2  onda 1  T-010"
-  echo "  faixa-3  onda 1  T-011"
-  echo "  faixa-4  onda 2  T-012"
+  echo "  faixa-1  onda 1  T-009"
   echo
   echo "reexecutar uma faixa:    --faixa <id>"
   echo "reexecutar sequencial:   --seq <T-xxx>"
@@ -406,9 +290,6 @@ case "$MODO" in
   faixa)
     case "$ALVO" in
       faixa-1) evento --tipo inicio --escopo "faixa:faixa-1"; iniciar_resumos; executar_faixa_1 || true; encerrar "faixa:faixa-1" ;;
-      faixa-2) evento --tipo inicio --escopo "faixa:faixa-2"; iniciar_resumos; executar_faixa_2 || true; encerrar "faixa:faixa-2" ;;
-      faixa-3) evento --tipo inicio --escopo "faixa:faixa-3"; iniciar_resumos; executar_faixa_3 || true; encerrar "faixa:faixa-3" ;;
-      faixa-4) evento --tipo inicio --escopo "faixa:faixa-4"; iniciar_resumos; executar_faixa_4 || true; encerrar "faixa:faixa-4" ;;
       *) falhar "faixa desconhecida: '$ALVO' — veja as disponíveis com --listar" ;;
     esac ;;
   seq)
