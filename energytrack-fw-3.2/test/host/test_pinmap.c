@@ -5,9 +5,11 @@
  *       test/host/test_pinmap.c src/hal/pzem_modbus.c -o build-host/test_pinmap
  *   ./build-host/test_pinmap
  *
- * Regras de hardware do RP2040 verificadas:
- *  - UART0: TX em {0,12,16,28}, RX em {1,13,17,29}
- *  - ADC: GP26..GP29 -> canal gpio - 26; canal 4 = sensor de temperatura
+ * Regras de hardware do ESP32 (ESP32-WROOM-32) verificadas:
+ *  - GPIOs que existem: 0..19, 21..23, 25..27, 32..39
+ *  - GPIO34..39 só entrada (não servem para TX nem LED)
+ *  - ADC1: GPIO36=ch0, 37=ch1, 38=ch2, 39=ch3, 32=ch4, 33=ch5, 34=ch6, 35=ch7
+ *  - UART pela matriz de GPIO: TX em pino com saída, RX em qualquer pino
  */
 #include <string.h>
 #include "board_pins.h"
@@ -22,23 +24,73 @@ static int in_list(int v, const int *list, size_t n)
     return 0;
 }
 
-static void test_only_picow_pins(void)
+static int gpio_exists(int gpio)
+{
+    return (gpio >= 0 && gpio <= 19) || (gpio >= 21 && gpio <= 23) ||
+           (gpio >= 25 && gpio <= 27) || (gpio >= 32 && gpio <= 39);
+}
+
+static int gpio_can_output(int gpio)
+{
+    return gpio_exists(gpio) && gpio < 34;
+}
+
+/* Canal do ADC1 de um GPIO, ou -1 se o pino não for do ADC1. */
+static int adc1_channel(int gpio)
+{
+    static const int map[][2] = {{36, 0}, {37, 1}, {38, 2}, {39, 3}, {32, 4}, {33, 5}, {34, 6}, {35, 7}};
+    for (size_t i = 0; i < COUNT(map); ++i) if (map[i][0] == gpio) return map[i][1];
+    return -1;
+}
+
+static void test_only_devkit_pins(void)
 {
     const int assigned[] = BOARD_ASSIGNED_PINS;
     const int reserved[] = BOARD_RESERVED_PINS;
-    const int expected_reserved[] = {23, 24, 25, 29};
+    const int expected_assigned[] = {17, 16, 2, 34};
+    const int expected_reserved[] = {6, 7, 8, 9, 10, 11, 1, 3, 0, 12};
 
-    TAP_CHECK(COUNT(assigned) == 2, "esperava só GP0/GP1 atribuídos, há %u pinos", (unsigned)COUNT(assigned));
-    TAP_CHECK(in_list(0, assigned, COUNT(assigned)) && in_list(1, assigned, COUNT(assigned)),
-              "GP0/GP1 deveriam estar atribuídos ao PZEM");
+    TAP_CHECK(COUNT(assigned) == COUNT(expected_assigned), "esperava %u pinos atribuídos, há %u",
+              (unsigned)COUNT(expected_assigned), (unsigned)COUNT(assigned));
+    for (size_t i = 0; i < COUNT(expected_assigned); ++i)
+        TAP_CHECK(in_list(expected_assigned[i], assigned, COUNT(assigned)),
+                  "GPIO%d deveria estar atribuído", expected_assigned[i]);
+    TAP_CHECK(BOARD_PIN_PZEM_TX == 17 && BOARD_PIN_PZEM_RX == 16, "PZEM deveria estar em GPIO17 TX / GPIO16 RX");
+    TAP_CHECK(BOARD_PIN_LED == 2, "LED da placa deveria ser o GPIO2");
+    TAP_CHECK(BOARD_PIN_LM35 == 34, "LM35 deveria estar no GPIO34");
+
+    TAP_CHECK(COUNT(reserved) == COUNT(expected_reserved), "esperava %u pinos reservados, há %u",
+              (unsigned)COUNT(expected_reserved), (unsigned)COUNT(reserved));
     for (size_t i = 0; i < COUNT(expected_reserved); ++i)
         TAP_CHECK(in_list(expected_reserved[i], reserved, COUNT(reserved)),
-                  "GP%d (CYW43) deveria estar reservado", expected_reserved[i]);
+                  "GPIO%d (flash, console ou boot) deveria estar reservado", expected_reserved[i]);
     for (size_t i = 0; i < COUNT(assigned); ++i)
-        TAP_CHECK(!in_list(assigned[i], reserved, COUNT(reserved)), "GP%d está reservado", assigned[i]);
+        TAP_CHECK(!in_list(assigned[i], reserved, COUNT(reserved)), "GPIO%d está reservado", assigned[i]);
+    for (size_t i = 0; i < COUNT(assigned); ++i)
+        for (size_t j = i + 1; j < COUNT(assigned); ++j)
+            TAP_CHECK(assigned[i] != assigned[j], "GPIO%d atribuído duas vezes", assigned[i]);
 }
 
-static void test_no_bitdoglab_leftovers(void)
+static void test_pins_fit_their_function(void)
+{
+    const int assigned[] = BOARD_ASSIGNED_PINS;
+    for (size_t i = 0; i < COUNT(assigned); ++i)
+        TAP_CHECK(gpio_exists(assigned[i]), "GPIO%d não existe no ESP32", assigned[i]);
+
+    TAP_CHECK(BOARD_PZEM_UART_INDEX == 2, "PZEM deveria estar na UART2");
+    TAP_CHECK(BOARD_CONSOLE_UART_INDEX == 0, "console deveria estar na UART0 (ponte USB-serial)");
+    TAP_CHECK(BOARD_PZEM_UART_INDEX != BOARD_CONSOLE_UART_INDEX, "PZEM dividindo a UART do console");
+    TAP_CHECK(gpio_can_output(BOARD_PIN_PZEM_TX), "GPIO%d não tem saída: não serve para TX", BOARD_PIN_PZEM_TX);
+    TAP_CHECK(gpio_exists(BOARD_PIN_PZEM_RX), "GPIO%d não serve para RX", BOARD_PIN_PZEM_RX);
+    TAP_CHECK(gpio_can_output(BOARD_PIN_LED), "GPIO%d não tem saída: não acende LED", BOARD_PIN_LED);
+
+    TAP_CHECK(BOARD_ADC_UNIT_LM35 == 1, "LM35 deveria estar no ADC1 (o ADC2 não convive com o Wi-Fi)");
+    TAP_CHECK(adc1_channel(BOARD_PIN_LM35) >= 0, "GPIO%d não é pino do ADC1", BOARD_PIN_LM35);
+    TAP_CHECK(adc1_channel(BOARD_PIN_LM35) == (int)BOARD_ADC_CH_LM35, "GPIO%d é o canal %d do ADC1, não %u",
+              BOARD_PIN_LM35, adc1_channel(BOARD_PIN_LM35), (unsigned)BOARD_ADC_CH_LM35);
+}
+
+static void test_no_bitdoglab_or_picow_leftovers(void)
 {
     int leftovers = 0;
 #if defined(BOARD_PIN_OLED_SDA) || defined(BOARD_PIN_OLED_SCL) || defined(BOARD_OLED_I2C_INDEX)
@@ -57,18 +109,15 @@ static void test_no_bitdoglab_leftovers(void)
     leftovers++;
 #endif
     TAP_CHECK(leftovers == 0, "%d grupo(s) de pinos da BitDogLab ainda no mapa", leftovers);
-}
 
-static void test_uart_function_pins(void)
-{
-    const int uart0_tx[] = {0, 12, 16, 28};
-    const int uart0_rx[] = {1, 13, 17, 29};
-    TAP_CHECK(BOARD_PZEM_UART_INDEX == 0, "PZEM deveria estar na uart0");
-    TAP_CHECK(in_list(BOARD_PIN_PZEM_TX, uart0_tx, COUNT(uart0_tx)), "GP%d não é UART0 TX", BOARD_PIN_PZEM_TX);
-    TAP_CHECK(in_list(BOARD_PIN_PZEM_RX, uart0_rx, COUNT(uart0_rx)), "GP%d não é UART0 RX", BOARD_PIN_PZEM_RX);
-    /* Nenhum pino de ADC ocupado pela UART (ADC0..ADC2 ficam livres). */
-    TAP_CHECK(BOARD_PIN_PZEM_TX < 26 && BOARD_PIN_PZEM_RX < 26, "UART do PZEM ocupando pino de ADC");
-    TAP_CHECK(BOARD_ADC_CH_TEMP == 4u, "sensor de temperatura interno é o canal 4 do ADC");
+    int picow = 0;
+#if defined(BOARD_PIN_CYW43_WL_ON) || defined(BOARD_PIN_CYW43_DATA_IRQ) || defined(BOARD_PIN_CYW43_CS) || defined(BOARD_PIN_CYW43_CLK_VSYS)
+    picow++;
+#endif
+#if defined(BOARD_LED_WL_GPIO) || defined(BOARD_ADC_CH_TEMP)
+    picow++;
+#endif
+    TAP_CHECK(picow == 0, "%d grupo(s) de definições da Pico W ainda no mapa", picow);
 }
 
 static void test_modbus_crc(void)
@@ -129,9 +178,10 @@ static void test_modbus_parse(void)
 
 int main(void)
 {
-    tap_run("AC-019 só GP0/GP1 atribuídos e pinos do CYW43 reservados", test_only_picow_pins);
-    tap_run("AC-019 nenhum pino da BitDogLab no mapa", test_no_bitdoglab_leftovers);
-    tap_run("pinos do PZEM têm função UART0 e o ADC fica livre", test_uart_function_pins);
+    tap_run("AC-019 só PZEM (GPIO17/16), LED (GPIO2) e LM35 (GPIO34) atribuídos; flash, console e boot reservados",
+            test_only_devkit_pins);
+    tap_run("AC-019 cada pino atribuído é capaz da sua função (UART2, saída, ADC1)", test_pins_fit_their_function);
+    tap_run("AC-019 nenhum pino da BitDogLab nem da Pico W no mapa", test_no_bitdoglab_or_picow_leftovers);
     tap_run("CRC-16/MODBUS do PZEM", test_modbus_crc);
     tap_run("decodificação da resposta do PZEM", test_modbus_parse);
     return tap_done();
