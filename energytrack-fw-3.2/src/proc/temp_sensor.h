@@ -1,9 +1,10 @@
 /**
  * @file temp_sensor.h
- * @brief Conversão do sensor de temperatura interno do RP2040 (ADC4) para m°C.
+ * @brief Conversão das tensões do LM35 para m°C.
  *
- * Fórmula do datasheet do RP2040 (seção 4.9.5):
- *   T = 27 - (V - 0,706) / 0,001721      com V = leitura * 3,3 / 4096
+ * LM35 na ligação básica: Vout = 10 mV/°C (0 °C = 0 mV), ou seja,
+ * 1 mV = 0,1 °C = 100 m°C. As tensões já chegam calibradas em mV (a
+ * calibração de fábrica do ADC fica na camada de hardware, adc_dma.c).
  *
  * C puro, inteiros (sem float): roda igual no host e na placa.
  */
@@ -12,14 +13,13 @@
 
 #include <stdint.h>
 
-#define TEMP_ADC_VREF_UV        3300000   /* referência do ADC: 3,3 V */
-#define TEMP_ADC_FULL_SCALE     4096      /* 12 bits */
+#define TEMP_LM35_MC_PER_MV     100       /* 10 mV/°C */
 #define TEMP_SENSOR_INVALID_MC  INT32_MIN
 
-/** Converte a soma de n leituras em m°C, sem perder a fração do LSB da média. */
-int32_t temp_sensor_sum_to_mc(uint32_t sum, uint32_t n);
+/** Converte a soma de n tensões (mV) em m°C, sem perder a fração do mV da média. */
+int32_t temp_sensor_sum_to_mc(uint32_t sum_mv, uint32_t n);
 
-/** Temperatura média de um bloco de amostras, em m°C. n == 0 -> TEMP_SENSOR_INVALID_MC. */
-int32_t temp_sensor_block_to_mc(const uint16_t *samples, uint32_t n);
+/** Temperatura média de um bloco de tensões em mV, em m°C. n == 0 ou nulo -> TEMP_SENSOR_INVALID_MC. */
+int32_t temp_sensor_block_to_mc(const uint16_t *mv, uint32_t n);
 
 #endif /* TEMP_SENSOR_H */

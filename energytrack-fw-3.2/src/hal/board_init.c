@@ -35,6 +35,9 @@ void board_init_pzem_uart(void)
     ESP_ERROR_CHECK(uart_param_config(BOARD_PZEM_UART, &cfg));
     ESP_ERROR_CHECK(uart_set_pin(BOARD_PZEM_UART, BOARD_PIN_PZEM_TX, BOARD_PIN_PZEM_RX,
                                  UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    /* O driver repassa os bytes da FIFO depois de N símbolos de silêncio na
+     * linha; 3 (≈ 3 ms a 9600 bps) entrega o fim do quadro mais cedo que o padrão de 10. */
+    ESP_ERROR_CHECK(uart_set_rx_timeout(BOARD_PZEM_UART, 3));
     /* Pull-up no RX: linha em repouso alta se o conversor estiver desligado. */
     ESP_ERROR_CHECK(gpio_set_pull_mode(BOARD_GPIO_PZEM_RX, GPIO_PULLUP_ONLY));
 }

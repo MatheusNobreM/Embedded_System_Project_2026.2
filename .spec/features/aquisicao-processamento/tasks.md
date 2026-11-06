@@ -60,7 +60,7 @@
 - Notas: PZEM na UART2 (GPIO17 TX / GPIO16 RX), LED no GPIO2, LM35 no GPIO34 (ADC1 canal 6). Reservados: flash SPI (GPIO6–11), console (GPIO1/3), boot (GPIO0/12). Constituição: esperas ocupadas e includes do ESP-IDF entram nos princípios P-004 e P-005. Substitui base-picow.spec.test.mjs.
 - Esforço: medio
 
-## T-011 — Aquisição no ESP32: gptimer, PZEM pela UART2 e LM35 por ADC contínuo + DMA [pendente]
+## T-011 — Aquisição no ESP32: gptimer, PZEM pela UART2 e LM35 por ADC contínuo + DMA [em-andamento]
 - Refs: US-001, US-002, AC-003
 - Arquivos: energytrack-fw-3.2/src/hal/acq_timer.c, energytrack-fw-3.2/src/hal/acq_timer.h, energytrack-fw-3.2/src/hal/adc_dma.c, energytrack-fw-3.2/src/hal/adc_dma.h, energytrack-fw-3.2/src/hal/adc_frame.c, energytrack-fw-3.2/src/hal/adc_frame.h, energytrack-fw-3.2/src/hal/pzem_link.c, energytrack-fw-3.2/src/hal/pzem_link.h, energytrack-fw-3.2/src/proc/temp_sensor.c, energytrack-fw-3.2/src/proc/temp_sensor.h, energytrack-fw-3.2/test/host/test_temp.c, energytrack-fw-3.2/test/spec/aquisicao.spec.test.mjs
 - Notas: gptimer de 1 MHz com alarme auto-recarregado a cada 1 s. ADC contínuo a 20 kHz (mínimo do ESP32), quadros de 10 ms; adc_frame (C puro) filtra o canal e tira a média de 20 conversões, formando blocos ping-pong de 100 amostras (100 ms). A tarefa adc calibra (eFuse, line fitting) e converte em °C (10 mV/°C). PZEM com o driver de UART do ESP-IDF: a leitura bloqueia no FreeRTOS, sem espera ocupada.
