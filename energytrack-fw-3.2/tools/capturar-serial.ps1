@@ -1,12 +1,14 @@
 <#
 .SYNOPSIS
-  Captura o log serial (USB-CDC) da Pico W para a prova de bancada do WPS 3.1.
+  Captura o log serial do ESP32 DevKit para a prova de bancada do WPS 3.1.
 
 .DESCRIPTION
-  Abre a porta COM da Pico W (detectada pelo VID 2E8A da Raspberry Pi quando
-  -Porta nao e informada), grava cada linha em test\bench\serial-bancada.log e
-  mostra na tela. Para sozinho depois de -Minutos (padrao 11: os 10 min do
-  aceite + 1 de folga). O teste do criterio de aceite AC-018 le esse arquivo.
+  Abre a porta COM da ponte USB-serial do DevKit (detectada pelo VID da
+  Silicon Labs CP210x, 10C4, ou da WCH CH340/CH9102, 1A86, quando -Porta nao
+  e informada), reinicia a placa pelo RTS para o log comecar no boot, grava
+  cada linha em test\bench\serial-bancada.log e mostra na tela. Para sozinho
+  depois de -Minutos (padrao 11: os 10 min do aceite + 1 de folga). O teste do
+  criterio de aceite AC-018 le esse arquivo.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File tools\capturar-serial.ps1
@@ -23,13 +25,13 @@ param(
 $ErrorActionPreference = 'Stop'
 
 if (-not $Porta) {
-    $pico = Get-CimInstance Win32_PnPEntity |
-        Where-Object { $_.PNPDeviceID -match 'VID_2E8A' -and $_.Name -match '\(COM\d+\)' } |
+    $ponte = Get-CimInstance Win32_PnPEntity |
+        Where-Object { $_.PNPDeviceID -match 'VID_(10C4|1A86)' -and $_.Name -match '\(COM\d+\)' } |
         Select-Object -First 1
-    if (-not $pico) {
-        throw 'Pico W nao encontrada na USB. Grave o energytrack_fw.uf2, ligue o cabo ou passe -Porta COMx.'
+    if (-not $ponte) {
+        throw 'ESP32 DevKit nao encontrado na USB (CP210x/CH340). Ligue o cabo, instale o driver da ponte ou passe -Porta COMx.'
     }
-    $null = $pico.Name -match '\((COM\d+)\)'
+    $null = $ponte.Name -match '\((COM\d+)\)'
     $Porta = $Matches[1]
 }
 
@@ -37,11 +39,16 @@ $Saida = [System.IO.Path]::GetFullPath($Saida)
 New-Item -ItemType Directory -Force -Path (Split-Path $Saida) | Out-Null
 
 $sp = New-Object System.IO.Ports.SerialPort $Porta, 115200, 'None', 8, 'One'
-$sp.DtrEnable = $true     # o stdio USB da Pico so envia com DTR ligado
-$sp.RtsEnable = $true
+# No DevKit, DTR e RTS da ponte comandam GPIO0 (boot) e EN (reset). DTR fica
+# desligado (GPIO0 solto = boot normal) e um pulso no RTS reinicia a placa.
+$sp.DtrEnable = $false
+$sp.RtsEnable = $false
 $sp.ReadTimeout = 1000
 $sp.NewLine = "`n"
 $sp.Open()
+$sp.RtsEnable = $true
+Start-Sleep -Milliseconds 100
+$sp.RtsEnable = $false
 
 $fim = (Get-Date).AddMinutes($Minutos)
 $writer = New-Object System.IO.StreamWriter($Saida, $false, (New-Object System.Text.UTF8Encoding($false)))

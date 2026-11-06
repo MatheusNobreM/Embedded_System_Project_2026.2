@@ -72,7 +72,7 @@
 - Notas: depende de T-010 e T-011. app_main cria a tarefa init presa no núcleo 1; todas as tarefas e ISRs ficam no núcleo 1. Tick de 1 kHz e console UART0 com driver (printf não faz espera ocupada). Sai o build da Pico: pico_sdk_import.cmake, config/FreeRTOSConfig.h e a configuração .vscode da extensão Raspberry Pi Pico.
 - Esforço: alto
 
-## T-013 — Tempo real e entregáveis no ESP32 [pendente]
+## T-013 — Tempo real e entregáveis no ESP32 [em-andamento]
 - Refs: US-006, US-007, AC-017, AC-021
 - Arquivos: energytrack-fw-3.2/src/rt/rt_tasks.c, energytrack-fw-3.2/src/rt/rt_tasks.h, energytrack-fw-3.2/docs/diagrama-tarefas.md, energytrack-fw-3.2/docs/como-funciona.md, energytrack-fw-3.2/README.md, energytrack-fw-3.2/tools/capturar-serial.ps1, energytrack-fw-3.2/test/bench/LEIAME.md
 - Notas: orçamentos revistos para 240 MHz e console UART a 115200 bps; captura serial pela ponte USB-serial (CP210x/CH340), com reset pelo RTS para o log começar no boot.

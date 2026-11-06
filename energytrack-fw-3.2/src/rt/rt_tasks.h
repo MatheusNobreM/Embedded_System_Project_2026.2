@@ -36,7 +36,7 @@ typedef struct {
 
 extern const rt_task_param_t RT_TASKS[RT_TASK_COUNT];
 
-/* Interrupções + kernel (tick, USB, DMA, timer, CYW43) como tarefa de prioridade máxima. */
+/* Interrupções + kernel do núcleo 1 (tick, UARTs, DMA do ADC, gptimer) como tarefa de prioridade máxima. */
 extern const rt_task_param_t RT_ISR_LOAD;
 
 #endif /* RT_TASKS_H */

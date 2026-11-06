@@ -8,7 +8,7 @@ test('@spec:AC-002 — sensor sem resposta vira alerta depois de 5 falhas seguid
   assertCriterion(anomaly(), 'AC-002');
 });
 
-test('@spec:AC-004 — superaquecimento da placa vira alerta', () => {
+test('@spec:AC-004 — superaquecimento do quadro (LM35) vira alerta', () => {
   assertCriterion(anomaly(), 'AC-004');
 });
 
