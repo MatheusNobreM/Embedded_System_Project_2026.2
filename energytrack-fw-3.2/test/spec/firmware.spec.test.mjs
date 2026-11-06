@@ -36,9 +36,14 @@ function projectDiagnostics(output) {
     });
 }
 
-/** Objetos dos fontes do projeto (o PlatformIO compila o componente src/ por conta própria). */
+/**
+ * Objetos dos fontes do projeto (o PlatformIO compila o componente src/ por
+ * conta própria) e o binário final. O SCons decide pelo conteúdo: sem apagar
+ * o firmware, um objeto recompilado igual não refaria o link, e o teste não
+ * provaria que o binário saiu desta compilação.
+ */
 function removeProjectObjects(envDir) {
-  for (const sub of ['src', 'app']) {
+  for (const sub of ['src', 'app', 'firmware.elf', 'firmware.bin']) {
     rmSync(path.join(envDir, sub), { recursive: true, force: true });
   }
 }
