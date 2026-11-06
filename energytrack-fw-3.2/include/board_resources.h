@@ -1,30 +1,39 @@
 /**
  * @file board_resources.h
- * @brief Instâncias de hardware do pico-sdk associadas ao mapa de pinos.
+ * @brief Instâncias de hardware do ESP-IDF associadas ao mapa de pinos.
  *
- * Separado de board_pins.h porque depende do SDK (uart0...).
- * Também barra, em tempo de compilação, a configuração de stdio que
- * colidiria com o PZEM na UART0.
+ * Separado de board_pins.h porque depende do ESP-IDF (uart_port_t,
+ * adc_channel_t...). Também barra, em tempo de compilação, a configuração
+ * de console que colidiria com o PZEM.
  */
 #ifndef BOARD_RESOURCES_H
 #define BOARD_RESOURCES_H
 
-#include "hardware/uart.h"
+#include "sdkconfig.h"
+#include "driver/gpio.h"
+#include "driver/uart.h"
+#include "hal/adc_types.h"
+
 #include "board_pins.h"
 
-#define BOARD_PZEM_UART   uart0
+#define BOARD_PZEM_UART        ((uart_port_t)BOARD_PZEM_UART_INDEX)
+#define BOARD_CONSOLE_UART     ((uart_port_t)BOARD_CONSOLE_UART_INDEX)
+#define BOARD_GPIO_PZEM_TX     ((gpio_num_t)BOARD_PIN_PZEM_TX)
+#define BOARD_GPIO_PZEM_RX     ((gpio_num_t)BOARD_PIN_PZEM_RX)
+#define BOARD_GPIO_LED         ((gpio_num_t)BOARD_PIN_LED)
+#define BOARD_LM35_ADC_UNIT    ADC_UNIT_1
+#define BOARD_LM35_ADC_CHANNEL ((adc_channel_t)BOARD_ADC_CH_LM35)
 
-_Static_assert(BOARD_PZEM_UART_INDEX == 0, "BOARD_PZEM_UART precisa acompanhar BOARD_PZEM_UART_INDEX");
+_Static_assert(BOARD_ADC_UNIT_LM35 == 1, "o LM35 precisa ficar no ADC1 (o ADC2 não convive com o Wi-Fi)");
+_Static_assert(BOARD_PZEM_UART_INDEX != BOARD_CONSOLE_UART_INDEX, "o PZEM não pode dividir a UART do console");
 
 /*
- * CONFLITO CRÍTICO: o stdio padrão do pico-sdk na Pico W é a uart0 em GP0/GP1.
- * Se pico_stdio_uart estiver habilitado, todo printf vai para o PZEM e
- * corrompe os quadros Modbus. Use stdio via USB:
- *   pico_enable_stdio_usb(<alvo> 1)
- *   pico_enable_stdio_uart(<alvo> 0)
+ * CONFLITO CRÍTICO: se o console do ESP-IDF (logs e printf) estiver na mesma
+ * UART do PZEM, todo printf vira lixo nos quadros Modbus. O console fica na
+ * UART0 (ponte USB-serial); o PZEM, na UART2.
  */
-#if defined(LIB_PICO_STDIO_UART) && LIB_PICO_STDIO_UART
-#error "pico_stdio_uart habilitado: a uart0 (GP0/GP1) e do PZEM. Use pico_enable_stdio_uart(<alvo> 0) e stdio USB."
+#if defined(CONFIG_ESP_CONSOLE_UART_NUM) && (CONFIG_ESP_CONSOLE_UART_NUM == BOARD_PZEM_UART_INDEX)
+#error "console do ESP-IDF na UART do PZEM: use CONFIG_ESP_CONSOLE_UART_DEFAULT (UART0) no sdkconfig."
 #endif
 
 #endif /* BOARD_RESOURCES_H */
