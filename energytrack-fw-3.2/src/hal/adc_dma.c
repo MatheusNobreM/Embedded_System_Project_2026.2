@@ -1,72 +1,115 @@
 #include "adc_dma.h"
 
-#include "hardware/adc.h"
-#include "hardware/dma.h"
-#include "hardware/irq.h"
-#include "pico/time.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
+#include "esp_adc/adc_continuous.h"
+#include "esp_timer.h"
 
-#include "board_pins.h"
+#include "board_resources.h"
 
-#define ADC_CLOCK_HZ       48000000u
-/* DMA_IRQ_1, compartilhada: a DMA_IRQ_0 fica livre para o SDK/driver do Wi-Fi. */
-#define ADC_DMA_IRQ_INDEX  1u
-#define ADC_DMA_IRQ        DMA_IRQ_1
+#define FRAME_MS          10u
+#define FRAME_CONV        (ADC_DMA_CONV_HZ / 1000u * FRAME_MS)              /* 200 conversões */
+#define FRAME_BYTES       (FRAME_CONV * ADC_FRAME_BYTES_PER_CONV)           /* 400 B */
+#define FRAME_SAMPLES_MAX (FRAME_CONV / ADC_FRAME_DECIMATION + 1u)          /* 10 (+1 de um grupo partido) */
+/* Fila interna do driver: só serviria a adc_continuous_read, que o firmware
+ * não usa. Com flush_pool ela se renova sozinha quando enche. */
+#define POOL_BYTES        (FRAME_BYTES * 2u)
+#define LM35_ATTEN        ADC_ATTEN_DB_2_5      /* até ~1,25 V = 125 °C */
+#define DEFAULT_VREF_MV   1100u                 /* só se o eFuse não tiver calibração */
 
+static adc_continuous_handle_t s_adc;
+static adc_cali_handle_t s_cali;
+static adc_decimator_t s_dec;                   /* só a ISR mexe */
 static uint16_t s_buf[2][ADC_DMA_BLOCK_SAMPLES];
-static int s_chan[2] = {-1, -1};
+static uint32_t s_fill_buf;
+static uint32_t s_fill_pos;
 static adc_dma_block_cb s_on_block;
 
-static void dma_irq_handler(void)
+static bool on_conv_done(adc_continuous_handle_t handle, const adc_continuous_evt_data_t *edata, void *user_data)
 {
-    for (uint32_t i = 0; i < 2u; ++i) {
-        const uint ch = (uint)s_chan[i];
-        if (!dma_irqn_get_channel_status(ADC_DMA_IRQ_INDEX, ch)) continue;
-        dma_irqn_acknowledge_channel(ADC_DMA_IRQ_INDEX, ch);
-        /* Rearma o destino SEM disparar: o canal volta quando o outro encadear
-         * nele. A contagem de transferências recarrega sozinha no disparo. */
-        dma_channel_set_write_addr(ch, s_buf[i], false);
-        if (s_on_block) s_on_block(i, time_us_64());
+    (void)handle;
+    (void)user_data;
+    uint16_t samples[FRAME_SAMPLES_MAX];
+    const uint32_t n = adc_decimator_feed(&s_dec, edata->conv_frame_buffer, edata->size, samples, FRAME_SAMPLES_MAX);
+
+    bool woken = false;
+    for (uint32_t i = 0; i < n; ++i) {
+        s_buf[s_fill_buf][s_fill_pos++] = samples[i];
+        if (s_fill_pos < ADC_DMA_BLOCK_SAMPLES) continue;
+        const uint32_t done = s_fill_buf;
+        s_fill_buf ^= 1u;
+        s_fill_pos = 0;
+        if (s_on_block != NULL && s_on_block(done, (uint64_t)esp_timer_get_time())) woken = true;
     }
+    return woken;
 }
 
-static void configure_channel(uint32_t i)
+static bool init_calibration(void)
 {
-    const uint ch = (uint)s_chan[i];
-    dma_channel_config c = dma_channel_get_default_config(ch);
-    channel_config_set_transfer_data_size(&c, DMA_SIZE_16);
-    channel_config_set_read_increment(&c, false);     /* sempre a FIFO do ADC */
-    channel_config_set_write_increment(&c, true);
-    channel_config_set_dreq(&c, DREQ_ADC);            /* uma transferência por conversão */
-    channel_config_set_chain_to(&c, (uint)s_chan[i ^ 1u]);
-    dma_channel_configure(ch, &c, s_buf[i], &adc_hw->fifo, ADC_DMA_BLOCK_SAMPLES, false);
-    dma_irqn_set_channel_enabled(ADC_DMA_IRQ_INDEX, ch, true);
+    const adc_cali_line_fitting_config_t cfg = {
+        .unit_id = BOARD_LM35_ADC_UNIT,
+        .atten = LM35_ATTEN,
+        .bitwidth = ADC_BITWIDTH_12,
+        .default_vref = DEFAULT_VREF_MV,
+    };
+    return adc_cali_create_scheme_line_fitting(&cfg, &s_cali) == ESP_OK;
 }
 
 bool adc_dma_start(adc_dma_block_cb on_block)
 {
     s_on_block = on_block;
-    s_chan[0] = dma_claim_unused_channel(false);
-    s_chan[1] = dma_claim_unused_channel(false);
-    if (s_chan[0] < 0 || s_chan[1] < 0) return false;
+    adc_decimator_init(&s_dec, (uint8_t)BOARD_ADC_CH_LM35);
 
-    adc_init();
-    adc_set_temp_sensor_enabled(true);
-    adc_select_input(BOARD_ADC_CH_TEMP);
-    adc_fifo_setup(true, true, 1, false, false);   /* FIFO + DREQ a cada amostra, 12 bits em 16 */
-    /* Uma conversão a cada (1 + div) ciclos de 48 MHz: div = 47999 -> 1 kHz. */
-    adc_set_clkdiv((float)(ADC_CLOCK_HZ / ADC_DMA_SAMPLE_HZ - 1u));
+    /* O canal do mapa de pinos precisa ser mesmo o GPIO do LM35. */
+    int io = -1;
+    if (adc_continuous_channel_to_io(BOARD_LM35_ADC_UNIT, BOARD_LM35_ADC_CHANNEL, &io) != ESP_OK ||
+        io != BOARD_PIN_LM35) {
+        return false;
+    }
+    if (!init_calibration()) return false;
 
-    configure_channel(0);
-    configure_channel(1);
-    irq_add_shared_handler(ADC_DMA_IRQ, dma_irq_handler, PICO_SHARED_IRQ_HANDLER_DEFAULT_ORDER_PRIORITY);
-    irq_set_enabled(ADC_DMA_IRQ, true);
+    const adc_continuous_handle_cfg_t handle_cfg = {
+        .max_store_buf_size = POOL_BYTES,
+        .conv_frame_size = FRAME_BYTES,
+        .flags.flush_pool = 1,
+    };
+    if (adc_continuous_new_handle(&handle_cfg, &s_adc) != ESP_OK) return false;
 
-    dma_channel_start((uint)s_chan[0]);
-    adc_run(true);
-    return true;
+    adc_digi_pattern_config_t pattern = {
+        .atten = LM35_ATTEN,
+        .channel = BOARD_ADC_CH_LM35,
+        .unit = BOARD_LM35_ADC_UNIT,
+        .bit_width = ADC_BITWIDTH_12,
+    };
+    const adc_continuous_config_t dig_cfg = {
+        .pattern_num = 1,
+        .adc_pattern = &pattern,
+        .sample_freq_hz = ADC_DMA_CONV_HZ,
+        .conv_mode = ADC_CONV_SINGLE_UNIT_1,
+    };
+    const adc_continuous_evt_cbs_t cbs = {.on_conv_done = on_conv_done};
+    return adc_continuous_config(s_adc, &dig_cfg) == ESP_OK &&
+           adc_continuous_register_event_callbacks(s_adc, &cbs, NULL) == ESP_OK &&
+           adc_continuous_start(s_adc) == ESP_OK;
 }
 
 const uint16_t *adc_dma_buffer(uint32_t buffer_index)
 {
     return s_buf[buffer_index & 1u];
+}
+
+bool adc_dma_block_to_mv(uint32_t buffer_index, uint16_t mv_out[ADC_DMA_BLOCK_SAMPLES])
+{
+    const uint16_t *raw = adc_dma_buffer(buffer_index);
+    for (uint32_t i = 0; i < ADC_DMA_BLOCK_SAMPLES; ++i) {
+        int mv = 0;
+        if (adc_cali_raw_to_voltage(s_cali, raw[i], &mv) != ESP_OK || mv < 0) return false;
+        mv_out[i] = (uint16_t)mv;
+    }
+    return true;
+}
+
+uint32_t adc_dma_dropped(void)
+{
+    return s_dec.dropped;
 }
