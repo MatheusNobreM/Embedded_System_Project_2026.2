@@ -1,7 +1,9 @@
 # Diagrama de tarefas — EnergyTrack WPS 3.1
 
-Firmware `energytrack_fw` na Raspberry Pi Pico W (RP2040, um núcleo, FreeRTOS)
-com o PZEM-004T v3 na UART0. A tabela abaixo é conferida automaticamente
+Firmware `energytrack_fw` no ESP32 DevKit (ESP32-WROOM-32, FreeRTOS do
+ESP-IDF) com o PZEM-004T v3 na UART2 e o LM35 no ADC1. Todas as tarefas e
+interrupções do firmware ficam presas no **núcleo 1** (APP_CPU); o núcleo 0
+fica com o sistema. Por isso a análise abaixo é de um núcleo só. A tabela abaixo é conferida automaticamente
 contra `src/rt/rt_tasks.c` (teste `entregaveis.spec.test.mjs`): se alguém
 mudar prioridade, período ou deadline no código sem atualizar este diagrama,
 o teste quebra.
@@ -10,19 +12,21 @@ o teste quebra.
 
 ```mermaid
 flowchart LR
-    subgraph HW["Hardware do RP2040"]
-        TMR["Timer de hardware<br/>alarme a cada 1 s"]
-        ADC["ADC4 — sensor de temperatura<br/>1 kHz pelo divisor do ADC"]
-        DMA["DMA em ping-pong<br/>2 canais × 100 amostras"]
-        UART["UART0 · GP0/GP1<br/>9600 bps 8N1"]
-        LED["LED da placa<br/>(WL_GPIO0 do CYW43)"]
-        USB["USB-CDC<br/>(printf)"]
+    subgraph HW["Hardware do ESP32 (interrupções no núcleo 1)"]
+        TMR["gptimer (TIMG)<br/>alarme a cada 1 s"]
+        ADC["ADC1 canal 6 · GPIO34<br/>contínuo a 20 kHz"]
+        DMA["DMA do ADC · quadros de 10 ms<br/>média 20:1 → ping-pong 2 × 100 amostras"]
+        UART["UART2 · GPIO17/GPIO16<br/>9600 bps 8N1"]
+        LED["LED da placa<br/>(GPIO2)"]
+        CON["Console UART0<br/>(ponte USB-serial, printf)"]
     end
     PZEMDEV[("PZEM-004T v3")]
+    LM35DEV[("LM35")]
 
     TMR -- "ISR → q_pzem_release (1)" --> PZEM
+    LM35DEV --> ADC
     ADC --> DMA
-    DMA -- "DMA_IRQ_1 → q_adc_block (1)" --> ADCT
+    DMA -- "ISR do ADC → q_adc_block (1)" --> ADCT
 
     PZEM["pzem · prio 3<br/>T = 1 s · D = 500 ms"] <-- "Modbus-RTU" --> UART
     UART <--> PZEMDEV
@@ -35,12 +39,12 @@ flowchart LR
     PROC -- "q_snapshot (1, sobrescrita)" --> STATUS
     PROC -- "q_snapshot (1, sobrescrita)" --> REPORT
     STATUS["status · prio 2 · T = 50 ms<br/>(soft)"] --> LED
-    REPORT["report · prio 1 · T = 2 s<br/>(soft)"] --> USB
+    REPORT["report · prio 1 · T = 2 s<br/>(soft)"] --> CON
 ```
 
-- **Um dono por recurso**: só `pzem` usa a UART0, só `adc` lê os buffers do
-  DMA, só `proc` mexe no estado do processamento, só `status` mexe no LED e só
-  `report` escreve na USB.
+- **Um dono por recurso**: só `pzem` usa a UART2, só `adc` lê os buffers do
+  ADC, só `proc` mexe no estado do processamento, só `status` mexe no LED e só
+  `report` escreve no console.
 - **ISR curta**: as interrupções só carimbam o instante e entregam o evento
   numa fila de 1 posição. Fila cheia = liberação perdida = estouro contado.
 - **Caixa de correio**: `q_snapshot` guarda só a fotografia mais recente do
@@ -56,12 +60,15 @@ flowchart LR
 | `status` | 2 | 50 ms | 50 ms | 1 ms | 0 ms | soft | periódica (`xTaskDelayUntil`) |
 | `report` | 1 | 2 s | 2 s | 30 ms | 0 ms | soft | periódica (`xTaskDelayUntil`) |
 
-Interrupções e kernel (tick de 1 kHz, USB, DMA, timer, CYW43) entram na
-análise como uma tarefa de prioridade máxima com 50 µs a cada 1 ms (5% da CPU).
-Esse orçamento também cobre a tarefa de timers do FreeRTOS (prioridade 7), que
-o port do RP2040 usa só para repassar avisos vindos de interrupção.
-A tarefa `init` (prioridade 7) só existe no boot: cria filas e tarefas, liga o
-DMA e o timer e se apaga.
+Interrupções e kernel do núcleo 1 (tick de 1 kHz, UARTs do PZEM e do console,
+DMA do ADC a cada 10 ms com a redução 20:1, gptimer) entram na análise como uma
+tarefa de prioridade máxima com 50 µs a cada 1 ms (5% da CPU). O núcleo 0 roda
+as tarefas do sistema do ESP-IDF (esp_timer, IPC e, num WPS futuro, o Wi-Fi):
+o firmware não cria nada lá, então elas não disputam a CPU das tarefas acima.
+A tarefa `init` (prioridade 10, núcleo 1) só existe no boot: liga o console, o
+LED e a UART2, cria filas e tarefas, liga o ADC com DMA e o timer e se apaga.
+Como os drivers alocam a interrupção no núcleo de quem os instala, é ela que
+garante que todas as ISRs fiquem no núcleo 1.
 
 **Por que estas prioridades**: as tarefas do critério de aceite (hard) ficam
 acima das "soft"; entre as hard vale o **deadline monotônico** — deadline menor,
@@ -96,7 +103,7 @@ sequenceDiagram
     participant Q as proc (prio 5)
     participant R as report (prio 1)
     T->>P: liberação t0 (q_pzem_release)
-    P->>P: Modbus pela UART0 (dorme ~30 ms)
+    P->>P: Modbus pela UART2 (dorme ~30 ms)
     P->>Q: amostra pronta t1 (q_samples)
     Note over P: resposta do pzem = fim − t0 ≤ 500 ms
     Q->>Q: energia, meta, anomalias

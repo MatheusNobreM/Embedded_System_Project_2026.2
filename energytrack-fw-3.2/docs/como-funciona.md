@@ -1,20 +1,24 @@
 # Como o firmware do EnergyTrack funciona
 
 Guia em linguagem simples do código em `energytrack-fw-3.2/`. Serve para quem
-sabe C mas nunca mexeu com FreeRTOS nem com a Pico W. Para o diagrama formal
+sabe C mas nunca mexeu com FreeRTOS nem com o ESP32. Para o diagrama formal
 (prioridades, deadlines e a prova de tempo real) veja
 [diagrama-tarefas.md](diagrama-tarefas.md); para compilar e testar, o
 [README](../README.md).
+
+> Até 05/11/2026 este firmware rodava numa Raspberry Pi Pico W. A versão da
+> Pico W está na branch `pico-w`; este guia descreve a do ESP32 DevKit.
 
 ---
 
 ## 1. Em uma frase
 
-A Pico W lê o medidor de energia PZEM-004T uma vez por segundo, lê a própria
-temperatura dez vezes por segundo, calcula na hora a potência, a energia do dia,
-como está a meta de consumo e se tem algo errado na rede. Depois mostra o
-resultado no LED da placa e manda um relatório pela USB a cada 2 segundos.
-Tudo isso medindo se cada etapa terminou dentro do prazo (o *deadline*).
+O ESP32 lê o medidor de energia PZEM-004T uma vez por segundo, lê a
+temperatura do quadro (sensor LM35) dez vezes por segundo, calcula na hora a
+potência, a energia do dia, como está a meta de consumo e se tem algo errado
+na rede. Depois mostra o resultado no LED da placa e manda um relatório pela
+porta serial (o cabo USB) a cada 2 segundos. Tudo isso medindo se cada etapa
+terminou dentro do prazo (o *deadline*).
 
 ## 2. A ideia geral
 
@@ -25,20 +29,25 @@ O firmware funciona como uma pequena linha de produção. Cada "estação" é um
 ```
  QUEM ACORDA                 AQUISIÇÃO              PROCESSAMENTO           SAÍDA
 
- timer de hardware ──1 s──►  [pzem]  ◄──UART──► PZEM-004T
+ timer de hardware ──1 s──►  [pzem]  ◄──UART2──► PZEM-004T
                                 │
-                                ├──► fila de amostras ──► [proc] ──► "fotografia" ──┬──► [status] ──► LED
+                                ├──► fila de amostras ──► [proc] ──► "fotografia" ──┬──► [status] ──► LED (GPIO2)
                                 │                                                   │
- DMA do ADC ──────100 ms──►  [adc]   ◄── sensor de temperatura                      └──► [report] ──► USB (printf)
+ ADC + DMA ───────100 ms──►  [adc]   ◄── LM35 (GPIO34)                              └──► [report] ──► console (printf)
 ```
 
 - `pzem` e `adc` **buscam os dados** (aquisição).
 - `proc` **faz as contas** (processamento).
 - `status` e `report` **mostram o resultado** (saída).
 
-Cada recurso tem **um único dono**: só a `pzem` usa a UART, só a `proc` mexe
-no estado das contas, só a `status` mexe no LED e só a `report` escreve na
-USB. Assim duas tarefas nunca brigam pelo mesmo recurso.
+Cada recurso tem **um único dono**: só a `pzem` usa a UART2, só a `proc` mexe
+no estado das contas, só a `status` mexe no LED e só a `report` escreve no
+console. Assim duas tarefas nunca brigam pelo mesmo recurso.
+
+**Dois núcleos, um usado.** O ESP32 tem dois núcleos. Todas as tarefas do
+firmware e as interrupções delas ficam presas no **núcleo 1**; o núcleo 0
+fica com as tarefas do próprio ESP-IDF (e, num WPS futuro, com o Wi-Fi).
+Assim a prova de tempo real (seção 8) continua sendo a de um processador só.
 
 ## 3. Seis conceitos que aparecem no código
 
@@ -47,7 +56,7 @@ USB. Assim duas tarefas nunca brigam pelo mesmo recurso.
 | **Tarefa** (*task*) | Uma função com um `for (;;)` infinito. O FreeRTOS reveza as tarefas na CPU como se cada uma tivesse o processador só para ela. |
 | **Prioridade** | Número da tarefa: maior = mais importante. Se uma tarefa mais prioritária fica pronta, ela **toma a CPU na hora** (preempção). |
 | **Fila** (*queue*) | Uma caixa de correio entre tarefas. Quem envia coloca uma mensagem; quem recebe dorme até chegar alguma. Não gasta CPU esperando. |
-| **Interrupção** (ISR) | Função chamada pelo hardware no meio de qualquer coisa (o timer estourou, o DMA terminou). Precisa ser **curtíssima**: aqui ela só anota a hora e põe um aviso numa fila. |
+| **Interrupção** (ISR) | Função chamada pelo hardware no meio de qualquer coisa (o timer estourou, o DMA terminou um quadro). Precisa ser **curtíssima**: aqui ela só anota a hora e põe um aviso numa fila. |
 | **DMA** | Um "ajudante" do chip que copia dados sozinho (do ADC para a memória), sem usar a CPU. |
 | **Deadline** | O prazo de cada trabalho. Tempo de resposta = hora que terminou − hora em que foi liberado. Passou do prazo = **estouro** (*miss*). |
 
@@ -55,14 +64,15 @@ USB. Assim duas tarefas nunca brigam pelo mesmo recurso.
 
 ### 4.1 Leitura do PZEM (a cada 1 segundo)
 
-1. O **timer de hardware** estoura e chama `on_pzem_release()` (interrupção).
-   Ela coloca a hora atual na fila `s_q_pzem_release` e sai.
+1. O **timer de hardware** (um *gptimer* do ESP32) estoura e chama
+   `on_pzem_release()` (interrupção). Ela coloca a hora atual na fila
+   `s_q_pzem_release` e sai.
 2. A tarefa **`pzem_task()`** estava dormindo nessa fila. Ela acorda e chama
    `pzem_link_read()`, que:
-   - limpa lixo da UART;
+   - limpa lixo da UART2;
    - envia o pedido Modbus de 8 bytes ("me manda os 10 registradores");
-   - **dorme de 10 em 10 ms** (`vTaskDelay`) enquanto os 25 bytes da resposta
-     chegam, por no máximo 200 ms;
+   - **dorme de 10 em 10 ms** dentro do driver da UART (`uart_read_bytes`)
+     enquanto os 25 bytes da resposta chegam, por no máximo 200 ms;
    - confere a resposta com `pzem_parse_response()` (CRC, endereço, tamanho) e
      separa tensão, corrente, potência, energia, frequência e fator de potência.
 3. A `pzem_task()` monta uma mensagem (`sample_msg_t`) com a leitura, se deu
@@ -70,17 +80,21 @@ USB. Assim duas tarefas nunca brigam pelo mesmo recurso.
 4. Ela registra o tempo de resposta (da liberação até aqui) no monitor de
    deadline e volta a dormir.
 
-### 4.2 Temperatura da placa (a cada 100 ms)
+### 4.2 Temperatura do quadro (a cada 100 ms)
 
-1. O **ADC** converte o sensor de temperatura interno 1000 vezes por segundo,
-   no ritmo do próprio relógio do ADC.
-2. O **DMA** copia cada conversão para a memória. São dois buffers de 100
-   amostras que se alternam (*ping-pong*): enquanto um enche, o outro pode ser lido.
-3. Quando um buffer enche, a interrupção do DMA chama `on_adc_block()`, que
-   avisa a tarefa `adc` pela fila `s_q_adc_block`.
-4. A **`adc_task()`** tira a média das 100 amostras e converte para °C
+1. O **ADC1** converte o canal do LM35 (GPIO34) **20 000 vezes por segundo**
+   — é o mínimo do modo contínuo do ESP32.
+2. O **DMA** copia as conversões para a memória em quadros de 10 ms (200
+   conversões). A cada quadro, a interrupção do driver (`on_conv_done()`) tira a
+   **média de cada 20 conversões** (`adc_decimator_feed()`), o que dá 1 amostra
+   por milissegundo (1 kHz).
+3. As amostras enchem dois buffers de 100 que se alternam (*ping-pong*):
+   enquanto um enche, o outro pode ser lido. Quando um enche, a interrupção
+   chama `on_adc_block()`, que avisa a tarefa `adc` pela fila `s_q_adc_block`.
+4. A **`adc_task()`** converte as 100 leituras em milivolts com a calibração de
+   fábrica do ADC (`adc_lm35_block_to_mv()`), tira a média e converte para °C
    (`temp_sensor_block_to_mc()`). Depois manda o valor na fila de amostras.
-   Ela tem 100 ms para isso: depois desse tempo, o DMA volta a escrever nesse buffer.
+   Ela tem 100 ms para isso: depois desse tempo, o buffer volta a ser escrito.
 
 ### 4.3 O processamento (a cada amostra que chega)
 
@@ -97,19 +111,21 @@ para cada mensagem:
 - **`status_task()`**, a cada 50 ms, olha a última foto e decide o LED
   (`proc_led_pattern()`): aceso fixo = normal; pisca devagar (1 Hz) = PZEM sem
   resposta; pisca rápido (5 Hz) = anomalia, meta estourada ou potência acima do limite.
-- **`report_task()`**, a cada 2 s, imprime pela USB as medidas, a energia, a
+- **`report_task()`**, a cada 2 s, imprime no console as medidas, a energia, a
   meta, as anomalias e a linha de tempo real (`rt t=...`). Depois de 10 minutos
-  sem nenhum estouro ela imprime `>>> RT PASS <<<`.
+  sem nenhum estouro ela imprime `>>> RT PASS <<<`. O `printf` cai num buffer
+  do driver da UART0, que uma interrupção vai esvaziando: a tarefa não fica
+  presa esperando a serial.
 
 ## 5. As cinco tarefas
 
 | Tarefa | Prioridade | Quem acorda | Prazo (deadline) | O que faz |
 |---|---|---|---|---|
 | `proc` | 5 (maior) | chegada de amostra | 50 ms | Contas: energia, meta, anomalias |
-| `adc` | 4 | DMA, a cada 100 ms | 100 ms | Média da temperatura |
-| `pzem` | 3 | timer, a cada 1 s | 500 ms | Lê o PZEM pela UART |
+| `adc` | 4 | ADC + DMA, a cada 100 ms | 100 ms | Média da temperatura |
+| `pzem` | 3 | timer, a cada 1 s | 500 ms | Lê o PZEM pela UART2 |
 | `status` | 2 | relógio, a cada 50 ms | — (não crítica) | LED |
-| `report` | 1 (menor) | relógio, a cada 2 s | — (não crítica) | Relatório pela USB |
+| `report` | 1 (menor) | relógio, a cada 2 s | — (não crítica) | Relatório no console |
 
 **Por que nessa ordem?** As três primeiras fazem parte do critério de aceite
 ("hard") e por isso ficam acima das duas de saída. Entre elas, quem tem o prazo
@@ -117,8 +133,10 @@ mais curto ganha prioridade maior (regra do *deadline monotônico*). A `pzem`
 passa a maior parte do tempo dormindo enquanto espera a UART. Por isso, mesmo
 com prioridade menor, ela não atrasa ninguém.
 
-Existe ainda a tarefa `init` (prioridade 7). Ela roda uma vez no boot, monta
-tudo e se apaga.
+Existe ainda a tarefa `init` (prioridade 10, núcleo 1). Ela roda uma vez no
+boot, monta tudo e se apaga. É ela quem instala os drivers: o ESP-IDF põe a
+interrupção de cada driver no núcleo de quem o instalou, então todas ficam no
+núcleo 1.
 
 ## 6. Arquivo por arquivo
 
@@ -128,10 +146,10 @@ tudo e se apaga.
 
 | Função | O que faz |
 |---|---|
-| `main()` | Liga a USB (`stdio_init_all`), cria a tarefa `init` e inicia o FreeRTOS. |
-| `init_task()` | Liga o chip Wi-Fi (para o LED), configura a UART e cria as 4 filas, os monitores de deadline e as 5 tarefas. Por último liga o DMA do ADC e o timer do PZEM, e se apaga. |
+| `app_main()` | Ponto de entrada do ESP-IDF (o FreeRTOS já está rodando). Cria a tarefa `init` presa no núcleo 1. |
+| `init_task()` | Liga o console, o LED e a UART2 e cria as 4 filas, os monitores de deadline e as 5 tarefas. Por último liga o ADC com DMA e o timer do PZEM, e se apaga. |
 | `on_pzem_release()` | **Interrupção** do timer: põe a hora na fila da `pzem`. Se a fila ainda estiver cheia, conta uma liberação perdida. |
-| `on_adc_block()` | **Interrupção** do DMA: avisa a `adc` qual buffer encheu e quando. |
+| `on_adc_block()` | **Interrupção** do ADC: avisa a `adc` qual buffer encheu e quando. |
 | `pzem_task()` | Lê o PZEM a cada liberação e manda a amostra para a `proc`. |
 | `adc_task()` | Converte o bloco do ADC em °C e manda para a `proc`. |
 | `proc_task()` | Processa cada amostra e publica a fotografia. |
@@ -139,12 +157,14 @@ tudo e se apaga.
 | `report_task()` | Imprime o relatório e decide se já dá `RT PASS`. |
 | `send_sample()` | Põe a amostra na fila da `proc`. Se a fila estiver cheia, conta estouro de quem enviou. |
 | `account_lost()` | Leva para o monitor as liberações que a interrupção não conseguiu entregar. |
-| `rtos_sleep_ms()` | "Dormir" do FreeRTOS (`vTaskDelay`), passado para o `pzem_link_read`. |
+| `now_us()` | Hora em µs desde o boot (`esp_timer_get_time`), a mesma nas ISRs e nas tarefas. |
 | `period_ticks()` | Converte o período da tabela (µs) em ticks do FreeRTOS. |
 | `print_measurements()`, `print_energy_and_goal()`, `print_anomalies()`, `print_rt_line()`, `print_wh()` | Pedaços do relatório. |
 | `hard_tasks_clean()` | Verdadeiro se `proc`, `adc` e `pzem` rodaram e nenhuma estourou o prazo. |
-| `create_task_or_panic()` | Cria uma tarefa. Se faltar memória, trava com mensagem (`panic`). |
-| `vApplicationStackOverflowHook()`, `vApplicationMallocFailedHook()` | Chamadas pelo FreeRTOS se uma pilha estourar ou faltar memória: travam com mensagem. |
+| `create_task_or_die()` | Cria uma tarefa presa no núcleo 1. Se faltar memória, avisa e reinicia (`fatal`). |
+
+Estouro de pilha não precisa de código nosso: o ESP-IDF detecta (opção
+`CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY`) e reinicia mostrando o nome da tarefa.
 
 #### `selftest_main.c` — o self-test do WPS 3.2
 
@@ -156,41 +176,45 @@ depois de 60 s com no máximo 5% de falhas, diz `SELFTEST PASS`).
 
 | Arquivo | Para que serve |
 |---|---|
-| `board_pins.h` | **Único lugar com números de pino.** PZEM em GP0/GP1, canal 4 do ADC (temperatura) e os pinos reservados do chip Wi-Fi. |
-| `board_resources.h` | Diz que o PZEM usa a `uart0`. Também **impede a compilação** se alguém ligar o `printf` na UART0, que é do PZEM. |
+| `board_pins.h` | **Único lugar com números de pino.** PZEM em GPIO17/GPIO16, LED no GPIO2, LM35 no GPIO34 (canal 6 do ADC1) e os pinos reservados (flash, console, boot). |
+| `board_resources.h` | Traduz o mapa para os tipos do ESP-IDF (UART2, canal do ADC). Também **impede a compilação** se alguém mandar o console para a UART do PZEM. |
 | `energy_config.h` | **Todos os limites e metas**: tensão nominal (220 ou 127 V), faixas do PRODIST, meta de 5 kWh/dia, limite de 3000 W por 10 s, frequência, fator de potência, temperatura. |
 
-### `config/FreeRTOSConfig.h` — ajustes do FreeRTOS
+### Configuração do ESP-IDF e do build
 
-Tick de 1 ms, até 8 prioridades, 64 KB de memória para tarefas e filas,
-detecção de estouro de pilha e integração com o pico-sdk. Cada linha tem um
-comentário dizendo por que está ali.
+| Arquivo | Para que serve |
+|---|---|
+| `platformio.ini` | Dois ambientes, um por firmware (`energytrack_fw` e `energytrack_selftest`), com a plataforma espressif32 fixada (ESP-IDF 6.1). |
+| `sdkconfig.defaults` | CPU a 240 MHz, tick do FreeRTOS de 1 ms, console na UART0 a 115200 bps, detecção de estouro de pilha. Substitui o antigo `FreeRTOSConfig.h`. |
+| `CMakeLists.txt` e `src/CMakeLists.txt` | Receita do ESP-IDF. O segundo escolhe quais fontes entram em cada firmware. |
 
 ### `src/hal/` — conversa com o hardware
 
 | Arquivo | Funções | O que fazem |
 |---|---|---|
-| `board_init.c` | `board_init_pzem_uart()` | Configura a UART0 a 9600 bps e os pinos GP0/GP1. |
-| | `board_init_cyw43()` | Liga o chip Wi-Fi (o LED da Pico W é um pino dele). |
-| | `board_led_set(on)` | Acende ou apaga o LED. |
+| `board_init.c` | `board_init_console()` | Instala o driver da UART0 para o `printf` não ficar esperando a serial. |
+| | `board_init_pzem_uart()` | Configura a UART2 a 9600 bps nos pinos GPIO17/GPIO16. |
+| | `board_init_led()`, `board_led_set(on)` | Configura e acende/apaga o LED do GPIO2. |
 | `pzem_modbus.c` | `pzem_build_read_request()` | Monta o pedido Modbus de 8 bytes. |
 | | `pzem_parse_response()` | Confere e decodifica a resposta de 25 bytes. |
 | | `pzem_crc16()` | Calcula o CRC que detecta bytes corrompidos. |
-| `pzem_link.c` | `pzem_link_read()` | A conversa completa pela UART (enviar, esperar dormindo, ler, decodificar). |
-| `acq_timer.c` | `acq_timer_start()` | Programa o timer de hardware para chamar uma função a cada 1 s, com a hora exata. |
-| `adc_dma.c` | `adc_dma_start()` | Liga o ADC no sensor de temperatura a 1 kHz e os dois canais de DMA em ping-pong. |
-| | `adc_dma_buffer(i)` | Devolve o buffer 0 ou 1 para leitura. |
+| `pzem_link.c` | `pzem_link_read()` | A conversa completa pela UART2 (enviar, esperar dormindo, ler, decodificar). |
+| `acq_timer.c` | `acq_timer_start()` | Programa o gptimer para chamar uma função a cada 1 s, com a hora exata. |
+| `adc_dma.c` | `adc_lm35_start()` | Liga o ADC1 no canal do LM35 a 20 kHz com DMA, a calibração de fábrica e a interrupção de cada quadro. |
+| | `adc_lm35_buffer(i)`, `adc_lm35_block_to_mv(i, mv)` | Devolvem o buffer 0 ou 1, cru ou já em milivolts. |
+| `adc_frame.c` | `adc_decimator_feed()` | Lê o quadro do ADC (formato TYPE1: canal nos 4 bits altos, leitura nos 12 baixos), descarta outros canais e tira a média de cada 20 conversões. |
 
-`pzem_modbus.c` não depende do hardware, então também é testado no PC.
+`pzem_modbus.c` e `adc_frame.c` não dependem do hardware, então também são
+testados no PC.
 
 ### `src/proc/` — as contas (C puro, testado no PC)
 
-Nenhum arquivo daqui conhece o FreeRTOS ou o pico-sdk: recebem números e a
+Nenhum arquivo daqui conhece o FreeRTOS ou o ESP-IDF: recebem números e a
 hora como parâmetro. Por isso rodam igual na placa e no PC, onde são testados.
 
 | Arquivo | Funções principais | O que fazem |
 |---|---|---|
-| `temp_sensor.c` | `temp_sensor_block_to_mc()` | Média de um bloco do ADC convertida em m°C pela fórmula do datasheet. |
+| `temp_sensor.c` | `temp_sensor_block_to_mc()` | Média de um bloco de milivolts do LM35 convertida em m°C (10 mV/°C). |
 | `energy.c` | `energy_on_sample()` | Soma a energia entre duas leituras. |
 | | `energy_tick()` | Vira o dia a cada 24 h, mesmo sem leituras. |
 | | `energy_day_mwh()`, `energy_total_mwh()`, `energy_prev_day_mwh()`, `energy_day_avg_power_dw()` | Consultas: energia do dia, desde o boot, do dia anterior e potência média. |
@@ -217,17 +241,17 @@ hora como parâmetro. Por isso rodam igual na placa e no PC, onde são testados.
 
 | Caminho | Para que serve |
 |---|---|
-| `CMakeLists.txt` | Receita de compilação dos dois firmwares (`energytrack_fw` e `energytrack_selftest`). |
 | `test/host/*.c` | Testes em C que rodam no PC. Cada caso imprime `ok`/`not ok`. |
 | `test/spec/*.mjs` | Ligam cada teste a um critério de aceite da especificação (`@spec:AC-xxx`). |
 | `test/bench/` | Onde fica o log da bancada (prova de 10 min na placa). |
-| `tools/capturar-serial.ps1` | Grava o log da USB da Pico W nesse arquivo. |
+| `tools/capturar-serial.ps1` | Reinicia o DevKit e grava o log da serial nesse arquivo. |
 
 ## 7. Os cálculos, com números
 
-**Por que números inteiros?** O processador da Pico (Cortex-M0+) não tem
-unidade de ponto flutuante: `float` funciona, mas é lento. Então tudo é inteiro
-numa unidade pequena, igual ao PZEM:
+**Por que números inteiros?** O código nasceu na Pico W, cujo processador
+(Cortex-M0+) não tem ponto flutuante. O ESP32 tem, mas manter tudo inteiro
+deixa as contas idênticas no PC e na placa e sem arredondamento escondido.
+Tudo é inteiro numa unidade pequena, igual ao PZEM:
 
 | Grandeza | Unidade no código | Exemplo |
 |---|---|---|
@@ -275,11 +299,13 @@ ligar e 3 para desligar (persistência). Uma leitura ruidosa sozinha não dispar
 | `FP_BAIXO` | Fator de potência abaixo de 0,92, só com carga de pelo menos 100 W. |
 | `SALTO_POTENCIA` | A potência sobe de repente bem acima da "linha de base" (uma média móvel), mais que 1000 W e mais que 4× a variação normal. Um patamar novo conta **um** evento. |
 | `SENSOR_SEM_RESPOSTA` | 5 falhas de leitura seguidas; some na primeira leitura boa. |
-| `SUPERAQUECIMENTO` | Placa acima de 70 °C em 3 blocos; só some abaixo de 65 °C. |
+| `SUPERAQUECIMENTO` | LM35 acima de 70 °C em 3 blocos; só some abaixo de 65 °C. |
 
-**Temperatura (`temp_sensor.c`).** Fórmula do datasheet do RP2040:
-T = 27 − (V − 0,706) / 0,001721, com V = leitura × 3,3 / 4096. Uma leitura de
-876 dá cerca de 27,1 °C.
+**Temperatura (`temp_sensor.c`).** O LM35 dá 10 mV por °C: 250 mV = 25,0 °C,
+700 mV = 70,0 °C. O código soma os milivolts do bloco, multiplica por 100 e só
+então divide pelo número de amostras, para não perder a fração do milivolt.
+A conversão de leitura crua do ADC para milivolts usa a calibração gravada de
+fábrica no chip (eFuse), em `adc_dma.c`.
 
 ## 8. Como se prova o "tempo real sem estouro de deadline"
 
@@ -287,7 +313,7 @@ O card pede isso como critério de aceite. Há duas provas que se completam.
 
 **Na placa (medição).** Cada tarefa tem um `rt_monitor_t`. A cada trabalho ela
 anota *tempo de resposta = hora do fim − hora da liberação*. A hora da
-liberação vem da interrupção (timer ou DMA) ou da chegada da amostra. Se passar
+liberação vem da interrupção (timer ou ADC) ou da chegada da amostra. Se passar
 do deadline, ou se uma liberação nova chegar antes da anterior terminar, conta
 `miss`. O relatório mostra, por tarefa:
 
@@ -301,8 +327,9 @@ visto, `d` = deadline. Com 10 min e `miss=0` nas três tarefas críticas sai
 
 **No PC (análise).** A **análise de tempo de resposta** (`rt_sched.c`)
 calcula, no pior caso, quanto cada tarefa pode demorar: o tempo dela mais o
-tempo que as tarefas mais prioritárias (e as interrupções) podem "roubar". Com
-os orçamentos de `rt_tasks.c`, o pior caso fica bem abaixo dos prazos:
+tempo que as tarefas mais prioritárias (e as interrupções) podem "roubar". Vale
+para o núcleo 1, onde está tudo. Com os orçamentos de `rt_tasks.c`, o pior caso
+fica bem abaixo dos prazos:
 
 | Tarefa | Pior caso calculado | Prazo |
 |---|---|---|
@@ -310,8 +337,8 @@ os orçamentos de `rt_tasks.c`, o pior caso fica bem abaixo dos prazos:
 | `adc` | 5,3 ms | 100 ms |
 | `pzem` | 250,6 ms | 500 ms |
 
-A CPU fica ocupada no máximo ~14% do tempo. A medição na placa confirma que os
-orçamentos são verdadeiros; a análise mostra que, com eles, não há como
+O núcleo 1 fica ocupado no máximo ~14% do tempo. A medição na placa confirma
+que os orçamentos são verdadeiros; a análise mostra que, com eles, não há como
 estourar.
 
 ## 9. Onde mexer para mudar algo
@@ -320,9 +347,10 @@ estourar.
 |---|---|
 | mudar a meta diária ou o limite de potência | `include/energy_config.h` |
 | usar em rede de 127 V | `CFG_NOMINAL_VOLTAGE` em `include/energy_config.h` |
-| trocar o pino do PZEM | `include/board_pins.h` |
+| trocar o pino do PZEM, do LED ou do LM35 | `include/board_pins.h` (o teste confere as regras do ESP32) |
 | mudar prioridade, período ou deadline | `src/rt/rt_tasks.c` **e** a tabela de `docs/diagrama-tarefas.md` (um teste confere) |
 | mudar o que aparece no relatório | funções `print_*` em `app/energytrack_main.c` |
+| mudar frequência da CPU, tick ou console | `sdkconfig.defaults` (e apague os `sdkconfig.<ambiente>` gerados) |
 
 Depois de mexer, rode os testes (veja o README). Eles avisam se alguma conta,
 limite ou o diagrama deixou de bater com a especificação.
