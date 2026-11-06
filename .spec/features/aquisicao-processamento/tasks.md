@@ -66,7 +66,7 @@
 - Notas: gptimer de 1 MHz com alarme auto-recarregado a cada 1 s. ADC contínuo a 20 kHz (mínimo do ESP32), quadros de 10 ms; adc_frame (C puro) filtra o canal e tira a média de 20 conversões, formando blocos ping-pong de 100 amostras (100 ms). A tarefa adc calibra (eFuse, line fitting) e converte em °C (10 mV/°C). PZEM com o driver de UART do ESP-IDF: a leitura bloqueia no FreeRTOS, sem espera ocupada.
 - Esforço: alto
 
-## T-012 — Firmware e self-test no ESP-IDF, build pelo PlatformIO [pendente]
+## T-012 — Firmware e self-test no ESP-IDF, build pelo PlatformIO [em-andamento]
 - Refs: US-006, US-007, AC-020
 - Arquivos: energytrack-fw-3.2/app/energytrack_main.c, energytrack-fw-3.2/app/selftest_main.c, energytrack-fw-3.2/platformio.ini, energytrack-fw-3.2/CMakeLists.txt, energytrack-fw-3.2/src/CMakeLists.txt, energytrack-fw-3.2/sdkconfig.defaults, energytrack-fw-3.2/.gitignore, energytrack-fw-3.2/.vscode/extensions.json, energytrack-fw-3.2/test/spec/firmware.spec.test.mjs, onpspec.config.json, .vscode/settings.json
 - Notas: depende de T-010 e T-011. app_main cria a tarefa init presa no núcleo 1; todas as tarefas e ISRs ficam no núcleo 1. Tick de 1 kHz e console UART0 com driver (printf não faz espera ocupada). Sai o build da Pico: pico_sdk_import.cmake, config/FreeRTOSConfig.h e a configuração .vscode da extensão Raspberry Pi Pico.

@@ -23,7 +23,7 @@ static adc_decimator_t s_dec;                   /* só a ISR mexe */
 static uint16_t s_buf[2][ADC_DMA_BLOCK_SAMPLES];
 static uint32_t s_fill_buf;
 static uint32_t s_fill_pos;
-static adc_dma_block_cb s_on_block;
+static adc_lm35_block_cb s_on_block;
 
 static bool on_conv_done(adc_continuous_handle_t handle, const adc_continuous_evt_data_t *edata, void *user_data)
 {
@@ -55,7 +55,7 @@ static bool init_calibration(void)
     return adc_cali_create_scheme_line_fitting(&cfg, &s_cali) == ESP_OK;
 }
 
-bool adc_dma_start(adc_dma_block_cb on_block)
+bool adc_lm35_start(adc_lm35_block_cb on_block)
 {
     s_on_block = on_block;
     adc_decimator_init(&s_dec, (uint8_t)BOARD_ADC_CH_LM35);
@@ -93,14 +93,14 @@ bool adc_dma_start(adc_dma_block_cb on_block)
            adc_continuous_start(s_adc) == ESP_OK;
 }
 
-const uint16_t *adc_dma_buffer(uint32_t buffer_index)
+const uint16_t *adc_lm35_buffer(uint32_t buffer_index)
 {
     return s_buf[buffer_index & 1u];
 }
 
-bool adc_dma_block_to_mv(uint32_t buffer_index, uint16_t mv_out[ADC_DMA_BLOCK_SAMPLES])
+bool adc_lm35_block_to_mv(uint32_t buffer_index, uint16_t mv_out[ADC_DMA_BLOCK_SAMPLES])
 {
-    const uint16_t *raw = adc_dma_buffer(buffer_index);
+    const uint16_t *raw = adc_lm35_buffer(buffer_index);
     for (uint32_t i = 0; i < ADC_DMA_BLOCK_SAMPLES; ++i) {
         int mv = 0;
         if (adc_cali_raw_to_voltage(s_cali, raw[i], &mv) != ESP_OK || mv < 0) return false;
@@ -109,7 +109,7 @@ bool adc_dma_block_to_mv(uint32_t buffer_index, uint16_t mv_out[ADC_DMA_BLOCK_SA
     return true;
 }
 
-uint32_t adc_dma_dropped(void)
+uint32_t adc_lm35_dropped(void)
 {
     return s_dec.dropped;
 }

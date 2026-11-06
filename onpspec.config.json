@@ -8,10 +8,11 @@
     "energytrack-fw-3.2/src/**",
     "energytrack-fw-3.2/app/**",
     "energytrack-fw-3.2/include/**",
-    "energytrack-fw-3.2/config/**",
     "energytrack-fw-3.2/docs/**",
     "energytrack-fw-3.2/tools/**",
-    "energytrack-fw-3.2/CMakeLists.txt"
+    "energytrack-fw-3.2/CMakeLists.txt",
+    "energytrack-fw-3.2/platformio.ini",
+    "energytrack-fw-3.2/sdkconfig.defaults"
   ],
   "ignoreGlobs": [
     "node_modules/**",
@@ -22,6 +23,7 @@
     ".spec/**",
     ".claude/**",
     "energytrack-fw-3.2/build/**",
-    "energytrack-fw-3.2/build-host/**"
+    "energytrack-fw-3.2/build-host/**",
+    "energytrack-fw-3.2/.pio/**"
   ]
 }
