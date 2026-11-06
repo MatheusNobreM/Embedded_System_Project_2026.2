@@ -1,0 +1,26 @@
+# EnergyTrack — padrões do ESP-IDF para o ESP32 DevKit (WROOM-32, 4 MB de flash).
+# O PlatformIO gera sdkconfig.<ambiente> a partir daqui (não versionado).
+
+# CPU a 240 MHz (o padrão do ESP-IDF é 160 MHz): os orçamentos de execução
+# de src/rt/rt_tasks.c contam com essa frequência.
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+
+# FreeRTOS: tick de 1 kHz. Períodos, deadlines e a análise de tempo real
+# (src/rt/rt_tasks.c) contam em milissegundos.
+CONFIG_FREERTOS_HZ=1000
+
+# Estouro de pilha vira panic com o nome da tarefa (o ESP-IDF tem o próprio hook).
+CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y
+
+# Console (logs e printf do relatório) na UART0, pela ponte USB-serial, a
+# 115200 bps. A UART2 é do PZEM: o console nunca pode ir para lá.
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
+
+# Watchdog de tarefas olhando o idle dos dois núcleos: se as tarefas do
+# firmware (núcleo 1) monopolizarem a CPU, a placa avisa.
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=y
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=y
+
+# Módulo WROOM-32
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y

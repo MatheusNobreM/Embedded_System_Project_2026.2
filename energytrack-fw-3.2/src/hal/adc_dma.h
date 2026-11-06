@@ -26,21 +26,21 @@
 #define ADC_DMA_CONV_HZ        (ADC_DMA_SAMPLE_HZ * ADC_FRAME_DECIMATION)   /* 20 kHz */
 
 /** Chamado na ISR: buffer_index (0/1) acabou de encher no instante t_us. true = acordou tarefa de prioridade maior. */
-typedef bool (*adc_dma_block_cb)(uint32_t buffer_index, uint64_t t_us);
+typedef bool (*adc_lm35_block_cb)(uint32_t buffer_index, uint64_t t_us);
 
 /** Configura o ADC1 no canal do LM35, a calibração e o DMA, e dispara. false = falhou. */
-bool adc_dma_start(adc_dma_block_cb on_block);
+bool adc_lm35_start(adc_lm35_block_cb on_block);
 
 /** Buffer de ADC_DMA_BLOCK_SAMPLES leituras brutas de 12 bits (já reduzidas a 1 kHz). */
-const uint16_t *adc_dma_buffer(uint32_t buffer_index);
+const uint16_t *adc_lm35_buffer(uint32_t buffer_index);
 
 /**
  * Converte o bloco em mV pela calibração de fábrica do ADC (eFuse, line
  * fitting). Chamar da tarefa, não da ISR. false = calibração indisponível.
  */
-bool adc_dma_block_to_mv(uint32_t buffer_index, uint16_t mv_out[ADC_DMA_BLOCK_SAMPLES]);
+bool adc_lm35_block_to_mv(uint32_t buffer_index, uint16_t mv_out[ADC_DMA_BLOCK_SAMPLES]);
 
 /** Amostras reduzidas que se perderam (não deveria passar de 0). */
-uint32_t adc_dma_dropped(void);
+uint32_t adc_lm35_dropped(void);
 
 #endif /* ADC_DMA_H */

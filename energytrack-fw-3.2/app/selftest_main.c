@@ -1,38 +1,39 @@
 /**
  * @file selftest_main.c
- * @brief Self-test do WPS 3.2 na Pico W pura: PZEM na UART0, LED da placa e log USB.
+ * @brief Self-test do WPS 3.2 no ESP32 DevKit: PZEM na UART2, LED da placa e log serial.
  *
- * Cada recurso tem uma única tarefa dona:
+ * Tarefas presas no núcleo 1, cada recurso com uma única tarefa dona:
  *
  *   tarefa   prio  dona de                       período
  *   -------  ----  ----------------------------  -------
- *   pzem      3    uart0 (GP0/GP1)               1 s
- *   status    2    LED da placa (CYW43)          100 ms
- *   report    1    stdio USB                     2 s
+ *   pzem      3    UART2 (GPIO17/GPIO16)         1 s
+ *   status    2    LED da placa (GPIO2)          100 ms
+ *   report    1    console (UART0, USB-serial)   2 s
  *
- * Saída: relatório pelo USB-CDC a cada 2 s e "SELFTEST PASS" depois de 60 s
+ * Saída: relatório pelo console a cada 2 s e "SELFTEST PASS" depois de 60 s
  * com o PZEM respondendo e no máximo 5% de leituras com falha.
  * LED aceso fixo = PZEM respondendo; piscando = sem resposta válida.
  */
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 
-#include "pico/stdlib.h"
-
-#include "FreeRTOS.h"
-#include "task.h"
+#include "esp_system.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include "board_init.h"
 #include "pzem_link.h"
 
 /* ---------------------------------------------------------------- config -- */
-#define PRIO_INIT            (configMAX_PRIORITIES - 1)
+#define APP_CORE             1       /* núcleo 1 (APP_CPU) */
+#define PRIO_INIT            10
 #define PRIO_PZEM            3
 #define PRIO_STATUS          2
 #define PRIO_REPORT          1
 
-#define STACK_SMALL          512u    /* palavras (2 KB) */
-#define STACK_PRINTF         1024u   /* printf usa bastante pilha */
+#define STACK_SMALL          3072u   /* bytes */
+#define STACK_REPORT         6144u   /* printf usa bastante pilha */
 
 #define PERIOD_PZEM_MS       1000u
 #define PERIOD_STATUS_MS     100u
@@ -45,29 +46,30 @@
 /* ----------------------------------------------------------------- tipos -- */
 /*
  * Estatísticas com UM escritor por campo (a tarefa dona); a report só lê.
- * Leitura/escrita de 32 bits alinhada é atômica no Cortex-M0+: sem mutex.
+ * Leitura/escrita de 32 bits alinhada é atômica no Xtensa LX6: sem mutex.
  */
 typedef struct {
-    volatile uint32_t cyw43_ok;
     volatile uint32_t pzem_ok, pzem_fail, pzem_last;
     volatile uint32_t voltage_dv, current_ma, power_dw, energy_wh, freq_dhz, pf_centi;
 } selftest_stats_t;
 
 static selftest_stats_t s_stats;
 
-/* --------------------------------------------------------------- tarefas -- */
-static void rtos_sleep_ms(uint32_t ms)
+static void fatal(const char *what)
 {
-    vTaskDelay(pdMS_TO_TICKS(ms));
+    printf("FATAL: %s\n", what);
+    fflush(stdout);
+    abort();
 }
 
+/* --------------------------------------------------------------- tarefas -- */
 static void pzem_task(void *arg)
 {
     (void)arg;
     TickType_t last = xTaskGetTickCount();
     for (;;) {
         pzem_measurement_t m;
-        pzem_parse_result_t r = pzem_link_read(rtos_sleep_ms, &m);
+        pzem_parse_result_t r = pzem_link_read(&m);
         s_stats.pzem_last = (uint32_t)r;
         if (r == PZEM_PARSE_OK) {
             s_stats.voltage_dv = m.voltage_dv;
@@ -111,8 +113,7 @@ static void report_task(void *arg)
     for (;;) {
         uint32_t uptime_s = (uint32_t)(xTaskGetTickCount() / configTICK_RATE_HZ);
 
-        printf("\n[%4lus] cyw43=%s  heap_livre=%u B\n", (unsigned long)uptime_s,
-               s_stats.cyw43_ok ? "ok" : "FALHOU", (unsigned)xPortGetFreeHeapSize());
+        printf("\n[%4lus] heap_livre=%lu B\n", (unsigned long)uptime_s, (unsigned long)esp_get_free_heap_size());
         printf("  PZEM  ok=%lu falha=%lu ultimo=%lu\n", (unsigned long)s_stats.pzem_ok,
                (unsigned long)s_stats.pzem_fail, (unsigned long)s_stats.pzem_last);
         printf("  V=%lu.%lu V  I=%lu.%03lu A  P=%lu.%lu W  E=%lu Wh  f=%lu.%lu Hz  FP=%lu.%02lu\n",
@@ -123,65 +124,48 @@ static void report_task(void *arg)
                (unsigned long)(s_stats.freq_dhz / 10u), (unsigned long)(s_stats.freq_dhz % 10u),
                (unsigned long)(s_stats.pf_centi / 100u), (unsigned long)(s_stats.pf_centi % 100u));
 
-        const bool ok_cyw43 = s_stats.cyw43_ok != 0;
-        const bool ok_pzem  = pzem_within_tolerance();
-        const bool ok_time  = uptime_s >= MIN_RUN_SECONDS;
+        const bool ok_pzem = pzem_within_tolerance();
+        const bool ok_time = uptime_s >= MIN_RUN_SECONDS;
 
-        if (ok_cyw43 && ok_pzem && ok_time) {
+        if (ok_pzem && ok_time) {
             if (!announced) printf("  >>> SELFTEST PASS <<<\n");
             announced = true;
         } else {
-            printf("  pendente:%s%s%s\n", ok_cyw43 ? "" : " cyw43", ok_pzem ? "" : " pzem",
-                   ok_time ? "" : " tempo");
+            printf("  pendente:%s%s\n", ok_pzem ? "" : " pzem", ok_time ? "" : " tempo");
         }
         xTaskDelayUntil(&last, pdMS_TO_TICKS(PERIOD_REPORT_MS));
     }
 }
 
 /* ------------------------------------------------------------------ init -- */
-static void create_task_or_panic(TaskFunction_t fn, const char *name, uint32_t stack,
-                                 UBaseType_t prio)
+static void create_task_or_die(TaskFunction_t fn, const char *name, uint32_t stack_bytes,
+                               UBaseType_t prio)
 {
-    if (xTaskCreate(fn, name, stack, NULL, prio, NULL) != pdPASS) {
-        panic("xTaskCreate(%s) falhou", name);
+    if (xTaskCreatePinnedToCore(fn, name, stack_bytes, NULL, prio, NULL, APP_CORE) != pdPASS) {
+        fatal(name);
     }
 }
 
 /*
- * A inicialização roda numa tarefa (e não em main) porque o CYW43 com
- * FreeRTOS espera o escalonador ativo.
+ * A inicialização roda numa tarefa presa no núcleo 1: as interrupções dos
+ * drivers (console e UART2) ficam no mesmo núcleo das tarefas.
  */
 static void init_task(void *arg)
 {
     (void)arg;
-    s_stats.cyw43_ok = board_init_cyw43() ? 1u : 0u;
-    if (!s_stats.cyw43_ok) printf("[init] cyw43_arch_init falhou\n");
+    board_init_console();
+    board_init_led();
     board_init_pzem_uart();
 
-    create_task_or_panic(pzem_task, "pzem", STACK_SMALL, PRIO_PZEM);
-    create_task_or_panic(status_task, "status", STACK_SMALL, PRIO_STATUS);
-    create_task_or_panic(report_task, "report", STACK_PRINTF, PRIO_REPORT);
+    create_task_or_die(pzem_task, "pzem", STACK_SMALL, PRIO_PZEM);
+    create_task_or_die(status_task, "status", STACK_SMALL, PRIO_STATUS);
+    create_task_or_die(report_task, "report", STACK_REPORT, PRIO_REPORT);
 
     printf("[init] self-test pronto\n");
     vTaskDelete(NULL);
 }
 
-int main(void)
+void app_main(void)
 {
-    stdio_init_all();   /* USB-CDC; a uart0 é do PZEM (ver board_resources.h) */
-    create_task_or_panic(init_task, "init", STACK_PRINTF, PRIO_INIT);
-    vTaskStartScheduler();
-    panic("escalonador retornou");
-}
-
-/* ----------------------------------------------------------------- hooks -- */
-void vApplicationStackOverflowHook(TaskHandle_t task, char *name)
-{
-    (void)task;
-    panic("stack overflow: %s", name);
-}
-
-void vApplicationMallocFailedHook(void)
-{
-    panic("heap do FreeRTOS esgotado");
+    create_task_or_die(init_task, "init", STACK_REPORT, PRIO_INIT);
 }

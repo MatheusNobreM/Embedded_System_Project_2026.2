@@ -2,15 +2,18 @@
  * @file energytrack_main.c
  * @brief Firmware do EnergyTrack (WPS 3.1): aquisição e processamento em tempo real.
  *
- * Pico W + PZEM-004T v3 na UART0. Cada recurso tem uma única tarefa dona:
+ * ESP32 DevKit (WROOM-32) + PZEM-004T v3 na UART2 + LM35 no ADC1, com o
+ * FreeRTOS do ESP-IDF. Todas as tarefas e interrupções do firmware ficam
+ * presas no núcleo 1 (APP_CPU); o núcleo 0 fica com o sistema. Cada recurso
+ * tem uma única tarefa dona:
  *
  *   tarefa  prio  liberada por                     deadline  dona de
  *   ------  ----  -------------------------------  --------  ----------------------
  *   proc     5    fila de amostras (pzem e adc)    50 ms     estado do processamento
- *   adc      4    IRQ do DMA a cada bloco (100 ms) 100 ms    buffers do ADC (ping-pong)
- *   pzem     3    timer de hardware a cada 1 s     500 ms    uart0
- *   status   2    periódica, 50 ms                 soft      LED da placa
- *   report   1    periódica, 2 s                   soft      stdio USB
+ *   adc      4    ISR do ADC a cada bloco (100 ms) 100 ms    buffers do ADC (ping-pong)
+ *   pzem     3    timer de hardware a cada 1 s     500 ms    UART2
+ *   status   2    periódica, 50 ms                 soft      LED da placa (GPIO2)
+ *   report   1    periódica, 2 s                   soft      console (UART0)
  *
  * Números em src/rt/rt_tasks.c; diagrama em docs/diagrama-tarefas.md.
  * Cada job tem tempo de resposta medido (liberação -> término) contra o
@@ -19,12 +22,13 @@
  */
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 
-#include "pico/stdlib.h"
-
-#include "FreeRTOS.h"
-#include "queue.h"
-#include "task.h"
+#include "esp_system.h"
+#include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
 
 #include "acq_timer.h"
 #include "adc_dma.h"
@@ -36,9 +40,10 @@
 #include "temp_sensor.h"
 
 /* ---------------------------------------------------------------- config -- */
-#define PRIO_INIT            (configMAX_PRIORITIES - 1)
-#define STACK_SMALL          512u    /* palavras (2 KB) */
-#define STACK_PRINTF         1024u   /* printf usa bastante pilha */
+#define APP_CORE             1       /* núcleo 1 (APP_CPU): tarefas e ISRs do firmware */
+#define PRIO_INIT            10      /* acima de todas as tarefas do firmware (1..5) */
+#define STACK_SMALL          3072u   /* bytes (no ESP-IDF a pilha conta em bytes) */
+#define STACK_REPORT         6144u   /* printf usa bastante pilha */
 #define SAMPLE_QUEUE_LEN     8u
 #define RT_PASS_SECONDS      600u    /* 10 min de bancada sem estouro */
 #define PZEM_MIN_OK_PCT      95u
@@ -60,7 +65,7 @@ typedef struct {
     int32_t            temp_mc;
 } sample_msg_t;
 
-/* IRQ do DMA -> adc */
+/* ISR do ADC -> adc */
 typedef struct {
     uint32_t buffer_index;
     uint64_t t_us;
@@ -69,41 +74,48 @@ typedef struct {
 static QueueHandle_t s_q_samples;        /* pzem, adc -> proc */
 static QueueHandle_t s_q_snapshot;       /* proc -> status, report (caixa de 1, sobrescrita) */
 static QueueHandle_t s_q_pzem_release;   /* ISR do timer -> pzem (1 liberação pendente no máximo) */
-static QueueHandle_t s_q_adc_block;      /* ISR do DMA -> adc (1 bloco pendente no máximo) */
+static QueueHandle_t s_q_adc_block;      /* ISR do ADC -> adc (1 bloco pendente no máximo) */
 
 static TaskHandle_t s_task[RT_TASK_COUNT];
 static rt_monitor_t s_mon[RT_TASK_COUNT];     /* um escritor por monitor: a tarefa dona */
 static volatile uint32_t s_pzem_lost_isr;     /* escritos só nas ISRs */
 static volatile uint32_t s_adc_lost_isr;
-static bool s_cyw43_ok;
 static proc_state_t s_proc;                   /* só a tarefa proc mexe */
 
+static uint64_t now_us(void)
+{
+    return (uint64_t)esp_timer_get_time();
+}
+
+/* Sem o recurso o firmware não tem o que fazer: avisa e reinicia (o ESP-IDF imprime o backtrace). */
+static void fatal(const char *what)
+{
+    printf("FATAL: %s\n", what);
+    fflush(stdout);
+    abort();
+}
+
 /* ------------------------------------------------------------------ ISRs -- */
-static void on_pzem_release(uint64_t release_us)
+static bool on_pzem_release(uint64_t release_us)
 {
     BaseType_t woken = pdFALSE;
     if (xQueueSendFromISR(s_q_pzem_release, &release_us, &woken) != pdTRUE) {
         s_pzem_lost_isr++;   /* a leitura anterior ainda não terminou */
     }
-    portYIELD_FROM_ISR(woken);
+    return woken == pdTRUE;  /* o driver troca de contexto na saída da ISR */
 }
 
-static void on_adc_block(uint32_t buffer_index, uint64_t t_us)
+static bool on_adc_block(uint32_t buffer_index, uint64_t t_us)
 {
     adc_block_evt_t ev = {.buffer_index = buffer_index, .t_us = t_us};
     BaseType_t woken = pdFALSE;
     if (xQueueSendFromISR(s_q_adc_block, &ev, &woken) != pdTRUE) {
         s_adc_lost_isr++;    /* o bloco anterior ainda não foi consumido */
     }
-    portYIELD_FROM_ISR(woken);
+    return woken == pdTRUE;
 }
 
 /* --------------------------------------------------------------- tarefas -- */
-static void rtos_sleep_ms(uint32_t ms)
-{
-    vTaskDelay(pdMS_TO_TICKS(ms));
-}
-
 /* Leva para o monitor as liberações que a ISR não conseguiu entregar. */
 static void account_lost(rt_monitor_t *mon, const volatile uint32_t *isr_count, uint32_t *seen)
 {
@@ -117,7 +129,7 @@ static void account_lost(rt_monitor_t *mon, const volatile uint32_t *isr_count, 
 /* Fila do proc cheia = amostra perdida = estouro de quem produziu. */
 static void send_sample(rt_monitor_t *mon, sample_msg_t *msg)
 {
-    msg->t_us = time_us_64();
+    msg->t_us = now_us();
     if (xQueueSend(s_q_samples, msg, 0) != pdTRUE) {
         rt_monitor_releases_lost(mon, 1);
     }
@@ -134,9 +146,9 @@ static void pzem_task(void *arg)
         account_lost(mon, &s_pzem_lost_isr, &lost_seen);
 
         sample_msg_t msg = {.kind = SAMPLE_PZEM};
-        msg.ok = (pzem_link_read(rtos_sleep_ms, &msg.m) == PZEM_PARSE_OK);
+        msg.ok = (pzem_link_read(&msg.m) == PZEM_PARSE_OK);
         send_sample(mon, &msg);
-        rt_monitor_job_done(mon, release_us, time_us_64());
+        rt_monitor_job_done(mon, release_us, now_us());
     }
 }
 
@@ -150,10 +162,12 @@ static void adc_task(void *arg)
         xQueueReceive(s_q_adc_block, &ev, portMAX_DELAY);
         account_lost(mon, &s_adc_lost_isr, &lost_seen);
 
-        sample_msg_t msg = {.kind = SAMPLE_TEMP, .ok = true};
-        msg.temp_mc = temp_sensor_block_to_mc(adc_dma_buffer(ev.buffer_index), ADC_DMA_BLOCK_SAMPLES);
+        uint16_t mv[ADC_DMA_BLOCK_SAMPLES];
+        sample_msg_t msg = {.kind = SAMPLE_TEMP};
+        msg.ok = adc_lm35_block_to_mv(ev.buffer_index, mv);
+        msg.temp_mc = msg.ok ? temp_sensor_block_to_mc(mv, ADC_DMA_BLOCK_SAMPLES) : TEMP_SENSOR_INVALID_MC;
         send_sample(mon, &msg);
-        rt_monitor_job_done(mon, ev.t_us, time_us_64());
+        rt_monitor_job_done(mon, ev.t_us, now_us());
     }
 }
 
@@ -163,20 +177,20 @@ static void proc_task(void *arg)
     rt_monitor_t *mon = &s_mon[RT_TASK_PROC];
     proc_config_t cfg;
     proc_default_config(&cfg);
-    proc_init(&s_proc, &cfg, time_us_64());
+    proc_init(&s_proc, &cfg, now_us());
 
     for (;;) {
         sample_msg_t msg;
         xQueueReceive(s_q_samples, &msg, portMAX_DELAY);
         if (msg.kind == SAMPLE_PZEM) {
             proc_on_pzem(&s_proc, msg.t_us, msg.ok, &msg.m);
-        } else {
+        } else if (msg.ok) {
             proc_on_temperature(&s_proc, msg.t_us, msg.temp_mc);
         }
         proc_snapshot_t snap;
         proc_snapshot(&s_proc, msg.t_us, &snap);
         xQueueOverwrite(s_q_snapshot, &snap);
-        rt_monitor_job_done(mon, msg.t_us, time_us_64());
+        rt_monitor_job_done(mon, msg.t_us, now_us());
     }
 }
 
@@ -191,14 +205,14 @@ static void status_task(void *arg)
     rt_monitor_t *mon = &s_mon[RT_TASK_STATUS];
     TickType_t last = xTaskGetTickCount();
     for (;;) {
-        const uint64_t start = time_us_64();
+        const uint64_t start = now_us();
         led_pattern_t pattern = LED_BLINK_SLOW;   /* ainda sem processamento */
         proc_snapshot_t snap;
         if (xQueuePeek(s_q_snapshot, &snap, 0) == pdTRUE) {
             pattern = proc_led_pattern(&snap);
         }
         board_led_set(led_pattern_level(pattern, start));
-        rt_monitor_job_done(mon, start, time_us_64());
+        rt_monitor_job_done(mon, start, now_us());
         if (xTaskDelayUntil(&last, period_ticks(RT_TASK_STATUS)) == pdFALSE) {
             rt_monitor_releases_lost(mon, 1);   /* já passou da hora da próxima liberação */
         }
@@ -214,7 +228,7 @@ static void print_wh(const char *label, uint64_t mwh)
 static void print_measurements(const proc_snapshot_t *s, uint32_t uptime_s)
 {
     const pzem_measurement_t *m = &s->last;
-    printf("\n[%5lus] PZEM ok=%lu falha=%lu | V=%u.%u V I=%lu.%03lu A P=%lu.%lu W f=%u.%u Hz FP=%u.%02u | placa %ld.%01ld C\n",
+    printf("\n[%5lus] PZEM ok=%lu falha=%lu | V=%u.%u V I=%lu.%03lu A P=%lu.%lu W f=%u.%u Hz FP=%u.%02u | LM35 %ld.%01ld C\n",
            (unsigned long)uptime_s, (unsigned long)s->pzem_ok, (unsigned long)s->pzem_fail,
            m->voltage_dv / 10u, m->voltage_dv % 10u,
            (unsigned long)(m->current_ma / 1000u), (unsigned long)(m->current_ma % 1000u),
@@ -271,7 +285,8 @@ static void print_rt_line(uint32_t uptime_s)
     line[n] = '\0';
     printf("%s\n", line);
 
-    printf("  heap livre=%u B | pilha livre (palavras):", (unsigned)xPortGetFreeHeapSize());
+    printf("  heap livre=%lu B | adc perdidas=%lu | pilha livre (bytes):",
+           (unsigned long)esp_get_free_heap_size(), (unsigned long)adc_lm35_dropped());
     for (uint32_t i = 0; i < RT_TASK_COUNT; ++i) {
         printf(" %s=%lu", RT_TASKS[i].name, (unsigned long)uxTaskGetStackHighWaterMark(s_task[i]));
     }
@@ -295,7 +310,7 @@ static void report_task(void *arg)
     bool announced = false;
 
     for (;;) {
-        const uint64_t start = time_us_64();
+        const uint64_t start = now_us();
         const uint32_t uptime_s = (uint32_t)(start / US_PER_S);
         proc_snapshot_t snap = {0};
         const bool have = (xQueuePeek(s_q_snapshot, &snap, 0) == pdTRUE);
@@ -310,7 +325,6 @@ static void report_task(void *arg)
         const uint32_t total = snap.pzem_ok + snap.pzem_fail;
         const bool pzem_ok = snap.pzem_ok > 0u && (uint64_t)snap.pzem_ok * 100u >= (uint64_t)total * PZEM_MIN_OK_PCT;
         const bool clean = hard_tasks_clean();
-        if (!s_cyw43_ok) printf("  aviso: CYW43 nao subiu, LED da placa desligado\n");
         if (clean && pzem_ok && uptime_s >= RT_PASS_SECONDS) {
             if (!announced) printf("  >>> RT PASS <<< %u s sem estouro de deadline\n", RT_PASS_SECONDS);
             announced = true;
@@ -323,7 +337,7 @@ static void report_task(void *arg)
             printf("  RT: OK ate agora, faltam %lu s para o aceite\n", (unsigned long)(RT_PASS_SECONDS - uptime_s));
         }
 
-        rt_monitor_job_done(mon, start, time_us_64());
+        rt_monitor_job_done(mon, start, now_us());
         if (xTaskDelayUntil(&last, period_ticks(RT_TASK_REPORT)) == pdFALSE) {
             rt_monitor_releases_lost(mon, 1);
         }
@@ -331,33 +345,36 @@ static void report_task(void *arg)
 }
 
 /* ------------------------------------------------------------------ init -- */
-static TaskHandle_t create_task_or_panic(TaskFunction_t fn, const char *name, uint32_t stack,
-                                         UBaseType_t prio)
+static TaskHandle_t create_task_or_die(TaskFunction_t fn, const char *name, uint32_t stack_bytes,
+                                       UBaseType_t prio)
 {
     TaskHandle_t handle = NULL;
-    if (xTaskCreate(fn, name, stack, NULL, prio, &handle) != pdPASS) {
-        panic("xTaskCreate(%s) falhou", name);
+    if (xTaskCreatePinnedToCore(fn, name, stack_bytes, NULL, prio, &handle, APP_CORE) != pdPASS) {
+        fatal(name);
     }
     return handle;
 }
 
 /*
- * A inicialização roda numa tarefa (e não em main) porque o CYW43 com
- * FreeRTOS espera o escalonador ativo. Ela tem a maior prioridade: cria
- * tudo antes que qualquer tarefa rode e só então liga as fontes de
- * liberação (DMA do ADC e timer do PZEM).
+ * A inicialização roda numa tarefa presa no núcleo 1, com a maior prioridade
+ * do firmware: os drivers alocam as interrupções no núcleo de quem os
+ * instala, então UART, timer e ADC atendem no núcleo 1, junto das tarefas
+ * (a análise de tempo real é de um núcleo só). Ela cria tudo antes que
+ * qualquer tarefa rode e só então liga as fontes de liberação (ADC com DMA e
+ * timer do PZEM).
  */
 static void init_task(void *arg)
 {
     (void)arg;
-    s_cyw43_ok = board_init_cyw43();
+    board_init_console();
+    board_init_led();
     board_init_pzem_uart();
 
     s_q_samples = xQueueCreate(SAMPLE_QUEUE_LEN, sizeof(sample_msg_t));
     s_q_snapshot = xQueueCreate(1, sizeof(proc_snapshot_t));
     s_q_pzem_release = xQueueCreate(1, sizeof(uint64_t));
     s_q_adc_block = xQueueCreate(1, sizeof(adc_block_evt_t));
-    if (!s_q_samples || !s_q_snapshot || !s_q_pzem_release || !s_q_adc_block) panic("filas");
+    if (!s_q_samples || !s_q_snapshot || !s_q_pzem_release || !s_q_adc_block) fatal("filas");
 
     for (uint32_t i = 0; i < RT_TASK_COUNT; ++i) rt_monitor_init(&s_mon[i], RT_TASKS[i].deadline_us);
 
@@ -369,35 +386,21 @@ static void init_task(void *arg)
         [RT_TASK_ADC]    = {adc_task, STACK_SMALL},
         [RT_TASK_PZEM]   = {pzem_task, STACK_SMALL},
         [RT_TASK_STATUS] = {status_task, STACK_SMALL},
-        [RT_TASK_REPORT] = {report_task, STACK_PRINTF},
+        [RT_TASK_REPORT] = {report_task, STACK_REPORT},
     };
     for (uint32_t i = 0; i < RT_TASK_COUNT; ++i) {
-        s_task[i] = create_task_or_panic(entry[i].fn, RT_TASKS[i].name, entry[i].stack, RT_TASKS[i].priority);
+        s_task[i] = create_task_or_die(entry[i].fn, RT_TASKS[i].name, entry[i].stack, RT_TASKS[i].priority);
     }
 
-    if (!adc_dma_start(on_adc_block)) panic("sem canal de DMA livre para o ADC");
-    if (!acq_timer_start(RT_TASKS[RT_TASK_PZEM].period_us, on_pzem_release)) panic("sem alarme livre para o PZEM");
+    if (!adc_lm35_start(on_adc_block)) fatal("ADC continuo do LM35 (canal, calibracao ou DMA)");
+    if (!acq_timer_start(RT_TASKS[RT_TASK_PZEM].period_us, on_pzem_release)) fatal("sem timer livre para o PZEM");
 
-    printf("[init] aquisicao iniciada, cyw43=%s\n", s_cyw43_ok ? "ok" : "FALHOU");
+    printf("[init] aquisicao iniciada no nucleo %d\n", (int)xPortGetCoreID());
     vTaskDelete(NULL);
 }
 
-int main(void)
+void app_main(void)
 {
-    stdio_init_all();   /* USB-CDC; a uart0 é do PZEM (ver board_resources.h) */
-    create_task_or_panic(init_task, "init", STACK_PRINTF, PRIO_INIT);
-    vTaskStartScheduler();
-    panic("escalonador retornou");
-}
-
-/* ----------------------------------------------------------------- hooks -- */
-void vApplicationStackOverflowHook(TaskHandle_t task, char *name)
-{
-    (void)task;
-    panic("stack overflow: %s", name);
-}
-
-void vApplicationMallocFailedHook(void)
-{
-    panic("heap do FreeRTOS esgotado");
+    /* app_main roda no núcleo 0; o firmware vai todo para o núcleo 1. */
+    create_task_or_die(init_task, "init", STACK_REPORT, PRIO_INIT);
 }

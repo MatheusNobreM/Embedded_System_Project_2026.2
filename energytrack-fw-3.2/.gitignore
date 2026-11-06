@@ -1,3 +1,17 @@
-build
+# PlatformIO / ESP-IDF
+.pio
+sdkconfig.energytrack_fw
+sdkconfig.energytrack_selftest
+sdkconfig.*.old
+dependencies.lock
+managed_components
+
+# Testes em C no PC
 build-host
-!.vscode/*
+
+# Build antigo da Pico W (branch pico-w)
+build
+
+# VS Code: só as recomendações são versionadas; o PlatformIO gera o resto
+.vscode/*
+!.vscode/extensions.json
