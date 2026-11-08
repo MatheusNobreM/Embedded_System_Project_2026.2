@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# executar-tarefas.sh — gerado por `onp-spec plano aquisicao-processamento` em 2026-11-06 01:29
+# executar-tarefas.sh — gerado por `onp-spec plano aquisicao-processamento` em 2026-11-08 00:23
 # NÃO edite à mão: mudou tasks.md ou a config, regenere o plano.
 #
 # uso:
@@ -14,7 +14,7 @@
 set -u
 set -o pipefail
 
-RUN_ID='energytrack-fw-wps3.2-aquisicao-processamento-mw4aqisc'
+RUN_ID='energytrack-fw-wps3.2-aquisicao-processamento-mw739vou'
 FEATURE='aquisicao-processamento'
 BASE_BRANCH='spec/aquisicao-processamento'
 ENGINE='.claude/skills/onp-spec-driven/scripts/onp-spec.mjs'

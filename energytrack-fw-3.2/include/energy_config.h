@@ -5,7 +5,7 @@
  * Valores fixos em compilação nesta etapa (WPS 3.1); ajuste em tempo de
  * execução fica para quando houver app/rede. Unidades seguem o PZEM:
  * tensão em dV (0,1 V), frequência em dHz (0,1 Hz), potência em dW (0,1 W),
- * fator de potência em centésimos, energia em mWh, temperatura em m°C.
+ * fator de potência em centésimos e energia em mWh.
  */
 #ifndef ENERGY_CONFIG_H
 #define ENERGY_CONFIG_H
@@ -38,11 +38,9 @@
 #define CFG_ALERT_PERSIST            3       /* leituras seguidas para ligar/desligar alertas */
 
 /* ------------------------------------------------------------------------- */
-/* Sensor e placa                                                            */
+/* Sensor                                                                    */
 /* ------------------------------------------------------------------------- */
 #define CFG_SENSOR_FAIL_LIMIT        5       /* falhas seguidas -> SENSOR_SEM_RESPOSTA */
-#define CFG_TEMP_SET_MC              70000   /* superaquecimento acima de 70 °C ... */
-#define CFG_TEMP_CLEAR_MC            65000   /* ... e só some abaixo de 65 °C */
 
 /* ------------------------------------------------------------------------- */
 /* Salto de potência atípico                                                 */

@@ -392,19 +392,19 @@
       "codigo": "VERIFY_FALHOU",
       "feature": "aquisicao-processamento",
       "ref": "AC-018",
-      "ocorrencias": 4,
+      "ocorrencias": 5,
       "primeiraVez": "2026-11-02T18:32:06.883Z",
-      "ultimaVez": "2026-11-06T01:28:34.482Z",
-      "gitRev": "0e770e6"
+      "ultimaVez": "2026-11-08T00:22:58.755Z",
+      "gitRev": "35b4a4f"
     },
     "AC_SEM_PROVA::aquisicao-processamento::AC-018": {
       "codigo": "AC_SEM_PROVA",
       "feature": "aquisicao-processamento",
       "ref": "AC-018",
-      "ocorrencias": 6,
+      "ocorrencias": 8,
       "primeiraVez": "2026-11-02T18:32:17.886Z",
-      "ultimaVez": "2026-11-06T01:28:44.653Z",
-      "gitRev": "0e770e6"
+      "ultimaVez": "2026-11-08T00:23:28.644Z",
+      "gitRev": "35b4a4f"
     },
     "ARQUIVO_INEXISTENTE::aquisicao-processamento::T-010": {
       "codigo": "ARQUIVO_INEXISTENTE",
@@ -459,6 +459,15 @@
       "primeiraVez": "2026-11-06T01:25:55.298Z",
       "ultimaVez": "2026-11-06T01:25:55.298Z",
       "gitRev": "08df242"
+    },
+    "TASK_CONCLUIDA_SEM_PROVA::aquisicao-processamento::T-014": {
+      "codigo": "TASK_CONCLUIDA_SEM_PROVA",
+      "feature": "aquisicao-processamento",
+      "ref": "T-014",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-11-08T00:23:14.303Z",
+      "ultimaVez": "2026-11-08T00:23:14.304Z",
+      "gitRev": "35b4a4f"
     }
   }
 }

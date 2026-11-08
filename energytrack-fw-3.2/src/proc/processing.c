@@ -32,8 +32,6 @@ void proc_default_config(proc_config_t *cfg)
     cfg->anomaly.pf_min_power_dw = CFG_PF_MIN_POWER_DW;
     cfg->anomaly.persist = CFG_ALERT_PERSIST;
     cfg->anomaly.sensor_fail_limit = CFG_SENSOR_FAIL_LIMIT;
-    cfg->anomaly.temp_set_mc = CFG_TEMP_SET_MC;
-    cfg->anomaly.temp_clear_mc = CFG_TEMP_CLEAR_MC;
     cfg->anomaly.spike_warmup = CFG_SPIKE_WARMUP;
     cfg->anomaly.spike_k = CFG_SPIKE_K;
     cfg->anomaly.spike_min_step_dw = CFG_SPIKE_MIN_STEP_DW;
@@ -71,14 +69,6 @@ void proc_on_pzem(proc_state_t *p, uint64_t t_us, bool ok, const pzem_measuremen
     update_goal_energy(p, t_us);
 }
 
-void proc_on_temperature(proc_state_t *p, uint64_t t_us, int32_t temp_mc)
-{
-    p->temp_mc = temp_mc;
-    anomaly_on_temperature(&p->anomaly, temp_mc);
-    energy_tick(&p->energy, t_us);
-    update_goal_energy(p, t_us);
-}
-
 void proc_snapshot(const proc_state_t *p, uint64_t now_us, proc_snapshot_t *out)
 {
     memset(out, 0, sizeof *out);
@@ -86,7 +76,6 @@ void proc_snapshot(const proc_state_t *p, uint64_t now_us, proc_snapshot_t *out)
     out->has_reading = p->has_reading;
     out->pzem_ok = p->pzem_ok;
     out->pzem_fail = p->pzem_fail;
-    out->temp_mc = p->temp_mc;
 
     out->day_index = p->energy.day_index;
     out->day_mwh = energy_day_mwh(&p->energy);

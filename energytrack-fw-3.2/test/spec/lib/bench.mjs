@@ -70,8 +70,7 @@ export function benchProblems(log, hardTasks, minSeconds = 600) {
     if (s.miss !== 0) problems.push(`${name} teve ${s.miss} estouro(s) de deadline`);
     if (s.rmax >= s.d) problems.push(`${name}: resposta máxima ${s.rmax}us >= deadline ${s.d}us`);
   }
-  // Sanidade: a aquisição rodou no ritmo esperado (adc a 10 Hz, pzem a 1 Hz).
-  if (rt.tasks.adc && rt.tasks.adc.jobs < 0.9 * rt.t * 10) problems.push(`adc com só ${rt.tasks.adc.jobs} jobs em ${rt.t}s`);
+  // Sanidade: a aquisição rodou no ritmo esperado (pzem a 1 Hz).
   if (rt.tasks.pzem && rt.tasks.pzem.jobs < 0.9 * rt.t) problems.push(`pzem com só ${rt.tasks.pzem.jobs} jobs em ${rt.t}s`);
 
   const pzem = parseLastPzemCounts(log);

@@ -14,6 +14,6 @@ test('@spec:AC-015 — LED da placa mostra o estado', () => {
   assertCriterion(processing(), 'AC-015');
 });
 
-test('processamento: configuração padrão e fluxo da temperatura', () => {
+test('processamento: configuração padrão', () => {
   assertAllPassed(processing());
 });

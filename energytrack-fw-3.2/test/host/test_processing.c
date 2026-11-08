@@ -51,7 +51,6 @@ static void test_default_config_matches_spec(void)
     TAP_CHECK(a->f_min_dhz == 595 && a->f_max_dhz == 605, "frequência 59,5–60,5 Hz");
     TAP_CHECK(a->pf_min_centi == 92 && a->pf_min_power_dw == 1000, "FP 0,92 com carga >= 100 W");
     TAP_CHECK(a->persist == 3 && a->sensor_fail_limit == 5, "persistência 3 e 5 falhas seguidas");
-    TAP_CHECK(a->temp_set_mc == 70000 && a->temp_clear_mc == 65000, "superaquecimento 70 °C / 65 °C");
     TAP_CHECK(s_cfg.goal.daily_goal_mwh == 5000000u && s_cfg.goal.warn_pct == 80u, "meta 5 kWh/dia, aviso 80%%");
     TAP_CHECK(s_cfg.goal.power_limit_dw == 30000u && s_cfg.goal.power_hold_us == 10u * S_US, "limite 3000 W por 10 s");
     TAP_CHECK(s_cfg.energy.day_length_us == 86400ull * S_US, "dia de 24 h");
@@ -83,15 +82,6 @@ static void test_failed_reading_counted_and_harmless(void)
               (unsigned)s_snap.day_mwh);
 }
 
-static void test_temperature_flows_to_snapshot(void)
-{
-    start();
-    for (int i = 0; i < 3; ++i) proc_on_temperature(&s_p, (uint64_t)i * 100u * MS_US, 71000);
-    snap(300 * MS_US);
-    TAP_CHECK(s_snap.temp_mc == 71000, "temperatura deveria chegar ao snapshot");
-    TAP_CHECK(s_snap.anomalies & ANOM_SUPERAQUECIMENTO, "superaquecimento deveria chegar ao snapshot");
-}
-
 /* -------------------------------------------------------------- LED -- */
 static led_pattern_t pattern_now(uint64_t t_us)
 {
@@ -110,8 +100,14 @@ static void test_led_states(void)
     for (uint64_t t = 6; t <= 10; ++t) proc_on_pzem(&s_p, t * S_US, false, NULL);
     TAP_CHECK(pattern_now(10 * S_US) == LED_BLINK_SLOW, "sensor sem resposta: pisca a 1 Hz");
 
-    for (int i = 0; i < 3; ++i) proc_on_temperature(&s_p, 10 * S_US, 72000);
-    TAP_CHECK(pattern_now(10 * S_US) == LED_BLINK_FAST, "outra anomalia junto com sensor fora: pisca a 5 Hz");
+    start();
+    pzem_measurement_t sag = reading(500);
+    sag.voltage_dv = 1950;                       /* subtensão ativa ... */
+    feed_ok(0, 2, sag);
+    for (uint64_t t = 3; t <= 7; ++t) proc_on_pzem(&s_p, t * S_US, false, NULL);   /* ... e depois o sensor cai */
+    TAP_CHECK(pattern_now(7 * S_US) == LED_BLINK_FAST, "outra anomalia junto com sensor fora: pisca a 5 Hz");
+    TAP_CHECK((s_snap.anomalies & ANOM_SENSOR_SEM_RESPOSTA) && (s_snap.anomalies & ANOM_SUBTENSAO),
+              "sensor sem resposta e subtensão juntos");
 
     start();
     pzem_measurement_t low = reading(500);
@@ -157,7 +153,6 @@ int main(void)
     tap_run("configuração padrão segue a especificação", test_default_config_matches_spec);
     tap_run("AC-001 leitura com falha é contada e não mexe na energia nem na última leitura",
             test_failed_reading_counted_and_harmless);
-    tap_run("temperatura do ADC chega ao snapshot", test_temperature_flows_to_snapshot);
     tap_run("AC-015 LED: normal, sensor sem resposta, anomalia e limite", test_led_states);
     tap_run("AC-015 LED: meta em atenção não pisca, estourada pisca rápido", test_led_goal_states);
     tap_run("AC-015 LED: 1 Hz e 5 Hz", test_led_blink_rates);

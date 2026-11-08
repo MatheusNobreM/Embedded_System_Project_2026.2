@@ -1,6 +1,6 @@
 /**
  * @file board_pins.h
- * @brief Mapa de pinos do EnergyTrack — ESP32 DevKit (ESP32-WROOM-32) + PZEM-004T v3 + LM35.
+ * @brief Mapa de pinos do EnergyTrack — ESP32 DevKit (ESP32-WROOM-32) + PZEM-004T v3.
  *
  * FONTE ÚNICA DE VERDADE para números de GPIO (WPS/EAP 3.2; revisado no 3.1
  * e migrado da Pico W para o ESP32 em 05/11/2026 — a versão da Pico W está
@@ -12,7 +12,6 @@
  * Convenções:
  *  - BOARD_PIN_*         -> número do GPIO (GPIOn)
  *  - BOARD_*_UART_INDEX  -> número da UART (UART_NUM_n)
- *  - BOARD_ADC_*         -> unidade e canal do ADC
  *
  * Regras do ESP32 que valem aqui (conferidas no teste de host):
  *  - GPIO34 a GPIO39 são só entrada (sem saída e sem pull-up/pull-down).
@@ -20,7 +19,7 @@
  *  - As UARTs saem por qualquer pino pela matriz de GPIO.
  *
  * Livres para expansão: GPIO4, 5, 13, 14, 15, 18, 19, 21, 22, 23, 25, 26, 27,
- * 32, 33 e as entradas GPIO35, 36 e 39 (ADC1). GPIO5 e GPIO15 também são
+ * 32, 33 e as entradas GPIO34, 35, 36 e 39 (ADC1). GPIO5 e GPIO15 também são
  * pinos de boot (strapping): não os prenda em nível fixo no reset.
  */
 #ifndef BOARD_PINS_H
@@ -39,20 +38,13 @@
 #define BOARD_PZEM_MODBUS_ADDR       0xF8u  /* endereço "geral" (1 PZEM no barramento) */
 
 /* ------------------------------------------------------------------------- */
-/* LED azul da placa (DevKit de 30/38 pinos), aceso em nível alto.           */
+/* LED azul da própria placa (DevKit de 30/38 pinos), aceso em nível alto.   */
+/* Não há LED externo.                                                       */
 /* GPIO2 também é pino de boot: o LED com resistor o mantém em 0 no reset,   */
 /* como o modo de gravação exige.                                            */
 /* ------------------------------------------------------------------------- */
 #define BOARD_PIN_LED                2
 #define BOARD_LED_ON_LEVEL           1
-
-/* ------------------------------------------------------------------------- */
-/* LM35 — 10 mV/°C, alimentado em 5 V (VIN). A saída nunca passa de 1,5 V:   */
-/* vai direto no GPIO34, sem divisor. ADC1 canal 6, atenuação de 2,5 dB.     */
-/* ------------------------------------------------------------------------- */
-#define BOARD_PIN_LM35               34     /* só entrada: ótimo para sinal analógico */
-#define BOARD_ADC_UNIT_LM35          1      /* ADC1 (funciona junto com o Wi-Fi) */
-#define BOARD_ADC_CH_LM35            6u     /* ADC1_CH6 = GPIO34 */
 
 /* ------------------------------------------------------------------------- */
 /* Console (printf do relatório): UART0 pela ponte USB-serial da placa       */
@@ -81,7 +73,7 @@
 /* Listas para validação automática (host test)                              */
 /* ------------------------------------------------------------------------- */
 #define BOARD_ASSIGNED_PINS { \
-    BOARD_PIN_PZEM_TX, BOARD_PIN_PZEM_RX, BOARD_PIN_LED, BOARD_PIN_LM35 }
+    BOARD_PIN_PZEM_TX, BOARD_PIN_PZEM_RX, BOARD_PIN_LED }
 
 #define BOARD_RESERVED_PINS { \
     BOARD_PIN_FLASH_CLK, BOARD_PIN_FLASH_SD0, BOARD_PIN_FLASH_SD1, \

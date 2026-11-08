@@ -2,9 +2,9 @@
  * @file processing.h
  * @brief Processamento local: junta energia, meta e anomalias a cada amostra.
  *
- * A tarefa proc é a única dona do proc_state_t. Cada amostra que chega (leitura
- * do PZEM, válida ou não, e bloco de temperatura do ADC) atualiza o estado; o
- * resultado sai como proc_snapshot_t, que as tarefas status e report leem.
+ * A tarefa proc é a única dona do proc_state_t. Cada leitura do PZEM que
+ * chega, válida ou não, atualiza o estado; o resultado sai como
+ * proc_snapshot_t, que as tarefas status e report leem.
  *
  * C puro: roda igual no host e na placa.
  */
@@ -32,7 +32,6 @@ typedef struct {
     pzem_measurement_t last;          /* última leitura válida */
     bool               has_reading;
     uint32_t           pzem_ok, pzem_fail;
-    int32_t            temp_mc;
 } proc_state_t;
 
 /** Fotografia do processamento para quem só lê (status e report). */
@@ -40,7 +39,6 @@ typedef struct {
     pzem_measurement_t last;
     bool               has_reading;
     uint32_t           pzem_ok, pzem_fail;
-    int32_t            temp_mc;
 
     uint32_t           day_index;
     uint32_t           day_mwh, prev_day_mwh;
@@ -72,9 +70,6 @@ void proc_init(proc_state_t *p, const proc_config_t *cfg, uint64_t now_us);
 
 /** Leitura do PZEM no instante t_us; m só é lido quando ok. */
 void proc_on_pzem(proc_state_t *p, uint64_t t_us, bool ok, const pzem_measurement_t *m);
-
-/** Temperatura média de um bloco do ADC. */
-void proc_on_temperature(proc_state_t *p, uint64_t t_us, int32_t temp_mc);
 
 void proc_snapshot(const proc_state_t *p, uint64_t now_us, proc_snapshot_t *out);
 

@@ -1,11 +1,11 @@
 {
   "feature": "aquisicao-processamento",
-  "timestamp": "2026-11-06T01:28:34.412Z",
-  "gitRev": "0e770e6",
+  "timestamp": "2026-11-08T00:22:58.699Z",
+  "gitRev": "35b4a4f",
   "command": "node --test --test-reporter=tap \"energytrack-fw-3.2/test/spec/*.spec.test.mjs\"",
   "reporter": "tap",
   "exitCode": 1,
-  "testsParsed": 30,
+  "testsParsed": 27,
   "results": {
     "AC-001": {
       "status": "pass",
@@ -15,16 +15,6 @@
     "AC-002": {
       "status": "pass",
       "testName": "@spec:AC-002 — sensor sem resposta vira alerta depois de 5 falhas seguidas",
-      "method": "tap"
-    },
-    "AC-003": {
-      "status": "pass",
-      "testName": "@spec:AC-003 — bloco de amostras do ADC vira temperatura em °C",
-      "method": "tap"
-    },
-    "AC-004": {
-      "status": "pass",
-      "testName": "@spec:AC-004 — superaquecimento do quadro (LM35) vira alerta",
       "method": "tap"
     },
     "AC-005": {
@@ -99,7 +89,7 @@
     },
     "AC-019": {
       "status": "pass",
-      "testName": "@spec:AC-019 — mapa de pinos só com o que existe no ESP32 DevKit + PZEM + LM35",
+      "testName": "@spec:AC-019 — mapa de pinos só com o que existe no ESP32 DevKit + PZEM",
       "method": "tap"
     },
     "AC-020": {

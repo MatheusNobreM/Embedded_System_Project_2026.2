@@ -8,7 +8,6 @@
  * Regras de hardware do ESP32 (ESP32-WROOM-32) verificadas:
  *  - GPIOs que existem: 0..19, 21..23, 25..27, 32..39
  *  - GPIO34..39 só entrada (não servem para TX nem LED)
- *  - ADC1: GPIO36=ch0, 37=ch1, 38=ch2, 39=ch3, 32=ch4, 33=ch5, 34=ch6, 35=ch7
  *  - UART pela matriz de GPIO: TX em pino com saída, RX em qualquer pino
  */
 #include <string.h>
@@ -35,19 +34,11 @@ static int gpio_can_output(int gpio)
     return gpio_exists(gpio) && gpio < 34;
 }
 
-/* Canal do ADC1 de um GPIO, ou -1 se o pino não for do ADC1. */
-static int adc1_channel(int gpio)
-{
-    static const int map[][2] = {{36, 0}, {37, 1}, {38, 2}, {39, 3}, {32, 4}, {33, 5}, {34, 6}, {35, 7}};
-    for (size_t i = 0; i < COUNT(map); ++i) if (map[i][0] == gpio) return map[i][1];
-    return -1;
-}
-
 static void test_only_devkit_pins(void)
 {
     const int assigned[] = BOARD_ASSIGNED_PINS;
     const int reserved[] = BOARD_RESERVED_PINS;
-    const int expected_assigned[] = {17, 16, 2, 34};
+    const int expected_assigned[] = {17, 16, 2};
     const int expected_reserved[] = {6, 7, 8, 9, 10, 11, 1, 3, 0, 12};
 
     TAP_CHECK(COUNT(assigned) == COUNT(expected_assigned), "esperava %u pinos atribuídos, há %u",
@@ -57,7 +48,6 @@ static void test_only_devkit_pins(void)
                   "GPIO%d deveria estar atribuído", expected_assigned[i]);
     TAP_CHECK(BOARD_PIN_PZEM_TX == 17 && BOARD_PIN_PZEM_RX == 16, "PZEM deveria estar em GPIO17 TX / GPIO16 RX");
     TAP_CHECK(BOARD_PIN_LED == 2, "LED da placa deveria ser o GPIO2");
-    TAP_CHECK(BOARD_PIN_LM35 == 34, "LM35 deveria estar no GPIO34");
 
     TAP_CHECK(COUNT(reserved) == COUNT(expected_reserved), "esperava %u pinos reservados, há %u",
               (unsigned)COUNT(expected_reserved), (unsigned)COUNT(reserved));
@@ -84,13 +74,9 @@ static void test_pins_fit_their_function(void)
     TAP_CHECK(gpio_exists(BOARD_PIN_PZEM_RX), "GPIO%d não serve para RX", BOARD_PIN_PZEM_RX);
     TAP_CHECK(gpio_can_output(BOARD_PIN_LED), "GPIO%d não tem saída: não acende LED", BOARD_PIN_LED);
 
-    TAP_CHECK(BOARD_ADC_UNIT_LM35 == 1, "LM35 deveria estar no ADC1 (o ADC2 não convive com o Wi-Fi)");
-    TAP_CHECK(adc1_channel(BOARD_PIN_LM35) >= 0, "GPIO%d não é pino do ADC1", BOARD_PIN_LM35);
-    TAP_CHECK(adc1_channel(BOARD_PIN_LM35) == (int)BOARD_ADC_CH_LM35, "GPIO%d é o canal %d do ADC1, não %u",
-              BOARD_PIN_LM35, adc1_channel(BOARD_PIN_LM35), (unsigned)BOARD_ADC_CH_LM35);
 }
 
-static void test_no_bitdoglab_or_picow_leftovers(void)
+static void test_no_leftovers(void)
 {
     int leftovers = 0;
 #if defined(BOARD_PIN_OLED_SDA) || defined(BOARD_PIN_OLED_SCL) || defined(BOARD_OLED_I2C_INDEX)
@@ -118,6 +104,10 @@ static void test_no_bitdoglab_or_picow_leftovers(void)
     picow++;
 #endif
     TAP_CHECK(picow == 0, "%d grupo(s) de definições da Pico W ainda no mapa", picow);
+
+#if defined(BOARD_PIN_LM35) || defined(BOARD_ADC_UNIT_LM35) || defined(BOARD_ADC_CH_LM35)
+    TAP_CHECK(0, "definições do LM35 ainda no mapa");
+#endif
 }
 
 static void test_modbus_crc(void)
@@ -178,10 +168,10 @@ static void test_modbus_parse(void)
 
 int main(void)
 {
-    tap_run("AC-019 só PZEM (GPIO17/16), LED (GPIO2) e LM35 (GPIO34) atribuídos; flash, console e boot reservados",
+    tap_run("AC-019 só PZEM (GPIO17/16) e LED da placa (GPIO2) atribuídos; flash, console e boot reservados",
             test_only_devkit_pins);
-    tap_run("AC-019 cada pino atribuído é capaz da sua função (UART2, saída, ADC1)", test_pins_fit_their_function);
-    tap_run("AC-019 nenhum pino da BitDogLab nem da Pico W no mapa", test_no_bitdoglab_or_picow_leftovers);
+    tap_run("AC-019 cada pino atribuído é capaz da sua função (UART2 e saída)", test_pins_fit_their_function);
+    tap_run("AC-019 nenhum pino da BitDogLab, da Pico W nem do LM35 no mapa", test_no_leftovers);
     tap_run("CRC-16/MODBUS do PZEM", test_modbus_crc);
     tap_run("decodificação da resposta do PZEM", test_modbus_parse);
     return tap_done();

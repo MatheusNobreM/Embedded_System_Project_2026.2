@@ -1,6 +1,6 @@
 /**
  * @file anomaly.h
- * @brief Detecção de anomalias da rede, da carga, do sensor e da placa.
+ * @brief Detecção de anomalias da rede, da carga e do sensor.
  *
  * Alertas com persistência (persist leituras seguidas para ligar e para
  * desligar), para não alarmar com uma leitura ruidosa:
@@ -8,7 +8,6 @@
  *                            precária ou crítica
  *   FREQUENCIA               fora de f_min..f_max
  *   FP_BAIXO                 fator de potência baixo, só com carga relevante
- *   SUPERAQUECIMENTO         temperatura da placa, com histerese
  * Alertas imediatos:
  *   SENSOR_SEM_RESPOSTA      sensor_fail_limit falhas seguidas; some na 1ª válida
  *   SALTO_POTENCIA           evento: potência acima da linha de base (média
@@ -32,10 +31,9 @@ typedef enum {
     ANOM_FP_BAIXO            = 1u << 3,
     ANOM_SALTO_POTENCIA      = 1u << 4,
     ANOM_SENSOR_SEM_RESPOSTA = 1u << 5,
-    ANOM_SUPERAQUECIMENTO    = 1u << 6,
 } anomaly_flag_t;
 
-#define ANOM_COUNT 7u
+#define ANOM_COUNT 6u
 
 typedef enum {
     VBAND_ADEQUADA = 0,
@@ -51,7 +49,6 @@ typedef struct {
     uint32_t pf_min_power_dw;                           /* só avalia FP com >= 100 W */
     uint8_t  persist;                                   /* leituras seguidas (3) */
     uint8_t  sensor_fail_limit;                         /* falhas seguidas (5) */
-    int32_t  temp_set_mc, temp_clear_mc;                /* 70 °C liga, < 65 °C desliga */
     uint16_t spike_warmup;                              /* leituras para formar a linha de base (30) */
     uint8_t  spike_k;                                   /* múltiplo do desvio típico (4) */
     uint32_t spike_min_step_dw;                         /* salto mínimo (1000 W) */
@@ -65,7 +62,7 @@ typedef struct {
 
 typedef struct {
     anomaly_config_t cfg;
-    anomaly_debounce_t under_v, over_v, freq, pf, hot;
+    anomaly_debounce_t under_v, over_v, freq, pf;
     voltage_band_t v_severity;      /* gravidade do alerta de tensão ativo */
 
     uint32_t consecutive_fails;
@@ -86,9 +83,6 @@ void anomaly_on_reading(anomaly_state_t *a, const pzem_measurement_t *m);
 
 /** Leitura do PZEM que falhou (timeout, CRC, quadro incompleto). */
 void anomaly_on_read_failure(anomaly_state_t *a);
-
-/** Temperatura média de um bloco do ADC, em m°C. */
-void anomaly_on_temperature(anomaly_state_t *a, int32_t temp_mc);
 
 /** Máscara de anomaly_flag_t ativas agora. */
 uint32_t anomaly_flags(const anomaly_state_t *a);

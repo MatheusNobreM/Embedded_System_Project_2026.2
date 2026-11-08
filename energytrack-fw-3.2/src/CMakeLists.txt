@@ -19,9 +19,6 @@ if(ET_APP STREQUAL "energytrack")
         ../app/energytrack_main.c
         ${ET_HAL_COMMON}
         hal/acq_timer.c
-        hal/adc_dma.c
-        hal/adc_frame.c
-        proc/temp_sensor.c
         proc/energy.c
         proc/goal.c
         proc/anomaly.c
@@ -41,7 +38,7 @@ endif()
 idf_component_register(
     SRCS ${ET_SRCS}
     INCLUDE_DIRS ../include hal proc rt
-    REQUIRES esp_driver_uart esp_driver_gpio esp_driver_gptimer esp_adc esp_timer freertos
+    REQUIRES esp_driver_uart esp_driver_gpio esp_driver_gptimer esp_timer freertos
 )
 
 # Avisos rigorosos só nos fontes do projeto: o ESP-IDF compila junto, mas não é nosso.

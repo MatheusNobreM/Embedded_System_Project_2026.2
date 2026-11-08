@@ -1,11 +1,11 @@
 # Plano de execução — aquisicao-processamento
 
-> gerado por `onp-spec plano` em 2026-11-06 01:29 — NÃO edite à mão;
+> gerado por `onp-spec plano` em 2026-11-08 00:23 — NÃO edite à mão;
 > mudou tasks.md ou a config? Regenere: `onp-spec plano aquisicao-processamento`
 
 ## Resumo — o que vai acontecer
 
-- **1 tarefa(s) pendente(s)**: 1 em 1 faixa(s) paralela(s) + 0 sequencial(is) (12 já concluída(s): T-001, T-002, T-003, T-004, T-005, T-006, T-007, T-008, T-010, T-011, T-012, T-013)
+- **1 tarefa(s) pendente(s)**: 1 em 1 faixa(s) paralela(s) + 0 sequencial(is) (13 já concluída(s): T-001, T-002, T-003, T-004, T-005, T-006, T-007, T-008, T-010, T-011, T-012, T-013, T-014)
 - **1 faixa = 1 worktree + 1 branch + 1 janela de contexto limpa** — faixas não compartilham nenhum arquivo entre si
 - prefere outra seleção ou uma após a outra? Regenere com `onp-spec plano aquisicao-processamento --paralelizar T-xxx,T-yyy` ou `--sequencial`
 - tudo acontece na branch de trabalho `spec/aquisicao-processamento`; levar para a main é decisão sua

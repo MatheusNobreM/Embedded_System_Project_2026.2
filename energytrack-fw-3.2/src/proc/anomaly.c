@@ -112,16 +112,6 @@ void anomaly_on_read_failure(anomaly_state_t *a)
     if (a->consecutive_fails >= a->cfg.sensor_fail_limit) a->sensor_offline = true;
 }
 
-void anomaly_on_temperature(anomaly_state_t *a, int32_t temp_mc)
-{
-    const anomaly_config_t *c = &a->cfg;
-    if (a->hot.active) {
-        debounce(&a->hot, temp_mc >= c->temp_clear_mc, c->persist);   /* só desliga abaixo de clear */
-    } else {
-        debounce(&a->hot, temp_mc > c->temp_set_mc, c->persist);
-    }
-}
-
 uint32_t anomaly_flags(const anomaly_state_t *a)
 {
     uint32_t f = 0;
@@ -131,7 +121,6 @@ uint32_t anomaly_flags(const anomaly_state_t *a)
     if (a->pf.active)      f |= ANOM_FP_BAIXO;
     if (a->spike_now)      f |= ANOM_SALTO_POTENCIA;
     if (a->sensor_offline) f |= ANOM_SENSOR_SEM_RESPOSTA;
-    if (a->hot.active)     f |= ANOM_SUPERAQUECIMENTO;
     return f;
 }
 
@@ -144,7 +133,6 @@ const char *anomaly_name(anomaly_flag_t flag)
     case ANOM_FP_BAIXO:            return "FP_BAIXO";
     case ANOM_SALTO_POTENCIA:      return "SALTO_POTENCIA";
     case ANOM_SENSOR_SEM_RESPOSTA: return "SENSOR_SEM_RESPOSTA";
-    case ANOM_SUPERAQUECIMENTO:    return "SUPERAQUECIMENTO";
     }
     return "?";
 }
