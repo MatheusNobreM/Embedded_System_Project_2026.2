@@ -12,7 +12,6 @@ static const anomaly_config_t CFG = {
     .pf_min_centi = 92, .pf_min_power_dw = 1000,
     .persist = 3,
     .sensor_fail_limit = 5,
-    .temp_set_mc = 70000, .temp_clear_mc = 65000,
     .spike_warmup = 30, .spike_k = 4, .spike_min_step_dw = 10000,
 };
 
@@ -65,34 +64,6 @@ static void test_failures_must_be_consecutive(void)
     feed(normal(), 1);
     for (int i = 0; i < 4; ++i) anomaly_on_read_failure(&s_a);
     TAP_CHECK(!has(ANOM_SENSOR_SEM_RESPOSTA), "falhas intercaladas com leitura válida não somam");
-}
-
-/* ------------------------------------------------------- temperatura -- */
-static void temps(int32_t mc, int times)
-{
-    for (int i = 0; i < times; ++i) anomaly_on_temperature(&s_a, mc);
-}
-
-static void test_overheat_needs_three_blocks(void)
-{
-    reset();
-    temps(71000, 2);
-    temps(69000, 1);
-    TAP_CHECK(!has(ANOM_SUPERAQUECIMENTO), "2 blocos acima de 70 °C não deveriam alertar");
-    temps(71000, 3);
-    TAP_CHECK(has(ANOM_SUPERAQUECIMENTO), "3 blocos acima de 70 °C deveriam alertar");
-}
-
-static void test_overheat_hysteresis(void)
-{
-    reset();
-    temps(72000, 3);
-    temps(67000, 10);
-    TAP_CHECK(has(ANOM_SUPERAQUECIMENTO), "67 °C (acima de 65 °C) mantém o alerta");
-    temps(64000, 2);
-    TAP_CHECK(has(ANOM_SUPERAQUECIMENTO), "ainda faltam blocos abaixo de 65 °C");
-    temps(64000, 1);
-    TAP_CHECK(!has(ANOM_SUPERAQUECIMENTO), "3 blocos abaixo de 65 °C limpam o alerta");
 }
 
 /* ------------------------------------------------------------ tensão -- */
@@ -246,8 +217,6 @@ int main(void)
     tap_run("AC-002 sensor sem resposta depois de 5 falhas seguidas, some na 1ª válida",
             test_sensor_offline_after_five_failures);
     tap_run("AC-002 falhas precisam ser seguidas", test_failures_must_be_consecutive);
-    tap_run("AC-004 superaquecimento exige 3 blocos acima de 70 °C", test_overheat_needs_three_blocks);
-    tap_run("AC-004 alerta de superaquecimento só some abaixo de 65 °C", test_overheat_hysteresis);
     tap_run("AC-011 subtensão PRODIST 220 V com gravidade precária/crítica", test_undervoltage_prodist);
     tap_run("AC-011 sobretensão PRODIST 220 V com gravidade precária/crítica", test_overvoltage_prodist);
     tap_run("AC-012 frequência fora de 59,5–60,5 Hz por 3 leituras", test_frequency_out_of_range);

@@ -2,7 +2,7 @@
  * @file rt_monitor.h
  * @brief Monitor de deadline por tarefa: tempo de resposta e estouros.
  *
- * Cada job tem um instante de liberação (timer, IRQ do DMA ou chegada da
+ * Cada job tem um instante de liberação (timer ou chegada da
  * amostra) e um instante de término. Tempo de resposta = término - liberação;
  * acima do deadline é estouro (miss). Uma liberação que chega com o job
  * anterior ainda pendente também é estouro (liberação perdida).

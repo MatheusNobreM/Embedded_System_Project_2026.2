@@ -38,7 +38,7 @@ test('@spec:AC-021 — diagrama de tarefas confere com o código', () => {
 test('@spec:AC-018 — 10 minutos na bancada sem estouro de deadline', () => {
   assert.ok(existsSync(BENCH_LOG),
     'log da bancada ainda não capturado: grave o energytrack_fw no ESP32 DevKit (pio run -e energytrack_fw -t upload), ' +
-    'ligue o PZEM com carga e o LM35 e rode ' +
+    'ligue o PZEM à rede com carga pelo transformador de corrente e rode ' +
     'tools/capturar-serial.ps1 (gera test/bench/serial-bancada.log)');
   const hard = firmwareTasks().filter((t) => t.hard).map((t) => t.name);
   const problems = benchProblems(readFileSync(BENCH_LOG, 'utf-8'), hard);
@@ -49,8 +49,8 @@ test('@spec:AC-018 — 10 minutos na bancada sem estouro de deadline', () => {
 
 function syntheticLog({ t = 600, miss = 0, ok = 600, fail = 0, pass = true } = {}) {
   return [
-    `[  ${t}s] PZEM ok=${ok} falha=${fail} | V=220.1 V I=1.000 A P=220.0 W f=60.0 Hz FP=1.00 | LM35 30.1 C`,
-    `  rt t=${t}s proc:jobs=${t * 11},miss=${miss},rmax=300us,d=50000us adc:jobs=${t * 10},miss=0,rmax=120us,d=100000us ` +
+    `[  ${t}s] PZEM ok=${ok} falha=${fail} | V=220.1 V I=1.000 A P=220.0 W f=60.0 Hz FP=1.00`,
+    `  rt t=${t}s proc:jobs=${t},miss=${miss},rmax=300us,d=50000us ` +
       `pzem:jobs=${t},miss=0,rmax=48000us,d=500000us status:jobs=${t * 20},miss=0,rmax=90us,d=50000us ` +
       `report:jobs=${t / 2},miss=0,rmax=9000us,d=2000000us`,
     pass ? '  >>> RT PASS <<< 600 s sem estouro de deadline' : '  RT: OK ate agora',
@@ -65,7 +65,7 @@ test('leitor do log de bancada entende a linha que o firmware imprime', () => {
 });
 
 test('leitor do log de bancada aceita um log bom e recusa os ruins', () => {
-  const hard = ['proc', 'adc', 'pzem'];
+  const hard = ['proc', 'pzem'];
   assert.deepEqual(benchProblems(syntheticLog(), hard), []);
   assert.ok(benchProblems(syntheticLog({ miss: 1 }), hard).some((p) => p.includes('estouro')));
   assert.ok(benchProblems(syntheticLog({ t: 300 }), hard).some((p) => p.includes('600s')));

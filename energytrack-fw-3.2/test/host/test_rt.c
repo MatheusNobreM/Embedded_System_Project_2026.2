@@ -134,7 +134,7 @@ static void test_task_table_rules(void)
     for (size_t i = 0; i < RT_TASK_COUNT; ++i) {
         const rt_task_param_t *t = &RT_TASKS[i];
         TAP_CHECK(t->deadline_us <= t->period_us, "%s: deadline acima do período", t->name);
-        TAP_CHECK(t->priority >= 1 && t->priority <= 6, "%s: prioridade %u fora de 1..6 (7 é o init)", t->name,
+        TAP_CHECK(t->priority >= 1 && t->priority <= 6, "%s: prioridade %u fora de 1..6 (o init usa 10)", t->name,
                   (unsigned)t->priority);
         for (size_t j = 0; j < RT_TASK_COUNT; ++j) {
             const rt_task_param_t *u = &RT_TASKS[j];

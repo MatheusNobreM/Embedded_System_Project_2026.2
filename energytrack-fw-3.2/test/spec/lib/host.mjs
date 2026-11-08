@@ -6,7 +6,7 @@
 // todos os casos marcados com aquele critério tenham passado.
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
@@ -30,7 +30,11 @@ export function runHostTest(name, sources = []) {
   if (cache.has(name)) return cache.get(name);
 
   mkdirSync(BUILD_DIR, { recursive: true });
-  const exe = path.join(BUILD_DIR, process.platform === 'win32' ? `${name}.exe` : name);
+  // Um executável por processo: o node:test roda os arquivos em paralelo, e
+  // dois deles compilam o mesmo teste (test_rt). No Windows, um .exe em uso
+  // trava o link do outro.
+  const base = `${name}.${process.pid}`;
+  const exe = path.join(BUILD_DIR, process.platform === 'win32' ? `${base}.exe` : base);
   const build = spawnSync('gcc', [...CFLAGS, `test/host/${name}.c`, ...sources, '-o', exe], {
     cwd: FW_DIR,
     encoding: 'utf-8',
@@ -48,6 +52,7 @@ export function runHostTest(name, sources = []) {
       if (m) cases.push({ ok: !m[1], name: m[2].trim() });
     }
     result = { buildError: null, cases, output, status: run.status };
+    rmSync(exe, { force: true });
   }
   cache.set(name, result);
   return result;

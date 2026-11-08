@@ -4,7 +4,7 @@ import { runHostTest, assertCriterion, assertAllPassed } from './lib/host.mjs';
 
 const pinmap = () => runHostTest('test_pinmap', ['src/hal/pzem_modbus.c']);
 
-test('@spec:AC-019 — mapa de pinos só com o que existe no ESP32 DevKit + PZEM + LM35', () => {
+test('@spec:AC-019 — mapa de pinos só com o que existe no ESP32 DevKit + PZEM', () => {
   assertCriterion(pinmap(), 'AC-019');
 });
 

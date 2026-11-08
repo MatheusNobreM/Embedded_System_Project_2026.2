@@ -48,9 +48,9 @@ quebrariam a análise de tempo real.
 
 ## P-005 [DEVE] Processamento e tempo real são C puro, testáveis no PC
 
-O que calcula (energia, metas, anomalias, temperatura, monitor e análise de
-tempo real) não inclui ESP-IDF, pico-sdk nem FreeRTOS: recebe tempo e
-amostras como parâmetro e roda igual no host e na placa.
+O que calcula (energia, metas, anomalias, monitor e análise de tempo real)
+não inclui ESP-IDF, pico-sdk nem FreeRTOS: recebe tempo e amostras como
+parâmetro e roda igual no host e na placa.
 
 - verificação(proibido): `#\s*include\s*[<"](esp_|driver/|freertos/|soc/|hal/|sdkconfig|pico/|hardware/|FreeRTOS\.h|task\.h|queue\.h|semphr\.h)` em `energytrack-fw-3.2/src/proc/**`
 - verificação(proibido): `#\s*include\s*[<"](esp_|driver/|freertos/|soc/|hal/|sdkconfig|pico/|hardware/|FreeRTOS\.h|task\.h|queue\.h|semphr\.h)` em `energytrack-fw-3.2/src/rt/**`

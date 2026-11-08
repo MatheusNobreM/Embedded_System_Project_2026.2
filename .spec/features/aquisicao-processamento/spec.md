@@ -14,12 +14,16 @@
 
 O EnergyTrack mede o consumo elétrico de uma instalação com um ESP32 DevKit
 (módulo ESP32-WROOM-32) ligado a um sensor PZEM-004T v3 pela UART2
-(GPIO17 TX / GPIO16 RX) e a um sensor de temperatura LM35 no ADC1 (GPIO34).
-Este pacote (WPS/EAP 3.1, card "Estruturar tarefas FreeRTOS de aquisição e
-processamento") organiza o firmware em tarefas FreeRTOS que adquirem dados
-(UART, ADC, timer de hardware e DMA) e processam na própria placa potência,
-energia, metas e anomalias — com prova de que o processamento roda em tempo
-real sem estourar deadline.
+(GPIO17 TX / GPIO16 RX). Este pacote (WPS/EAP 3.1, card "Estruturar tarefas
+FreeRTOS de aquisição e processamento") organiza o firmware em tarefas
+FreeRTOS que adquirem dados (UART disparada por timer de hardware) e
+processam na própria placa potência, energia, metas e anomalias — com prova
+de que o processamento roda em tempo real sem estourar deadline.
+
+Aquisição analógica: em 07/11/2026 o usuário decidiu não usar o LM35 nem LED
+externo. A temperatura e a cadeia ADC + DMA (antes US-002, AC-003 e AC-004)
+saíram do firmware; o card cita "ADC e DMA", e essa mudança de escopo fica
+para combinar com o professor (ASM-013).
 
 Plataforma: em 05/11/2026 o firmware migrou da Raspberry Pi Pico W (RP2040,
 pico-sdk) para o ESP32 com ESP-IDF compilado pelo PlatformIO. A versão da
@@ -51,27 +55,6 @@ acompanhado sem lacunas e sem travar quando o sensor falha.
 - **Quando** 5 leituras seguidas falham
 - **Então** aparece o alerta SENSOR_SEM_RESPOSTA
 - **E** o alerta some na primeira leitura válida
-
-### US-002 — Temperatura do quadro adquirida por ADC com DMA
-
-Como equipe do firmware, quero amostrar um sensor de temperatura LM35 pelo
-ADC1 do ESP32 em modo contínuo, com as conversões copiadas por DMA e
-entregues em blocos ping-pong de 100 amostras a 1 kHz, para que a aquisição
-analógica não gaste CPU e o quadro avise se esquentar.
-
-#### AC-003 — Bloco de amostras do ADC vira temperatura em °C
-
-- **Dado** um quadro do ADC contínuo (formato TYPE1 do ESP32: canal nos 4 bits altos, leitura nos 12 baixos) com conversões do canal do LM35 misturadas a conversões de outro canal
-- **Quando** o quadro é reduzido pela média de 20 conversões por amostra e o bloco de 100 tensões calibradas (mV) é convertido
-- **Então** só as conversões do canal do LM35 entram, e a temperatura sai em °C pela escala do LM35 de 10 mV/°C (250 mV = 25,0 °C; 700 mV = 70,0 °C; tolerância 0,1 °C)
-- **E** a média do bloco usa todas as amostras (sem perder a fração do mV)
-
-#### AC-004 — Superaquecimento do quadro vira alerta
-
-- **Dado** a temperatura do LM35 sendo medida a cada bloco de 100 ms
-- **Quando** ela passa de 70 °C em 3 blocos seguidos
-- **Então** aparece o alerta SUPERAQUECIMENTO
-- **E** o alerta só some quando a temperatura cai abaixo de 65 °C (histerese)
 
 ### US-003 — Potência e energia calculadas na própria placa
 
@@ -193,9 +176,9 @@ provar que o processamento é de tempo real.
 
 #### AC-018 — 10 minutos na bancada sem estouro de deadline
 
-- **Dado** o firmware gravado no ESP32 DevKit, com o PZEM ligado a uma carga e o LM35 no GPIO34
+- **Dado** o firmware gravado no ESP32 DevKit, com o PZEM ligado à rede e a uma carga pelo transformador de corrente
 - **Quando** ele roda 10 min com o log serial capturado em energytrack-fw-3.2/test/bench/serial-bancada.log
-- **Então** o último relatório mostra zero estouros nas tarefas proc, adc e pzem, com tempo de resposta máximo abaixo do deadline
+- **Então** o último relatório mostra zero estouros nas tarefas proc e pzem, com tempo de resposta máximo abaixo do deadline
 - **E** pelo menos 95% das leituras do PZEM são válidas
 - **E** aparece a linha ">>> RT PASS <<<"
 
@@ -205,12 +188,12 @@ Como equipe do EnergyTrack, quero o firmware no ESP32 DevKit (WROOM-32),
 compilado com ESP-IDF pelo PlatformIO, e um diagrama de tarefas fiel ao
 código, para entregar o WPS 3.1.
 
-#### AC-019 — Mapa de pinos só com o que existe no ESP32 DevKit + PZEM + LM35
+#### AC-019 — Mapa de pinos só com o que existe no ESP32 DevKit + PZEM
 
 - **Dado** o mapa de pinos (board_pins.h)
 - **Quando** o teste no PC roda
-- **Então** só a UART2 do PZEM (GPIO17 TX / GPIO16 RX), o LED da placa (GPIO2) e a entrada do LM35 (GPIO34, canal 6 do ADC1) estão atribuídos, cada um num pino capaz da função, e os pinos da flash SPI (GPIO6 a GPIO11), do console (GPIO1/GPIO3) e de boot (GPIO0/GPIO12) estão reservados
-- **E** nenhum pino da BitDogLab nem da Pico W sobrou no mapa
+- **Então** só a UART2 do PZEM (GPIO17 TX / GPIO16 RX) e o LED da própria placa (GPIO2) estão atribuídos, cada um num pino capaz da função, e os pinos da flash SPI (GPIO6 a GPIO11), do console (GPIO1/GPIO3) e de boot (GPIO0/GPIO12) estão reservados
+- **E** nenhum pino da BitDogLab, da Pico W nem do LM35 sobrou no mapa
 
 #### AC-020 — Firmware compila sem avisos
 
@@ -232,7 +215,8 @@ código, para entregar o WPS 3.1.
 - Persistência em flash: energia e metas zeram no reboot.
 - Classificação oficial do PRODIST (média de 10 min por leitura): aqui o alerta é antecipado, com persistência de 3 leituras.
 - Ajuste de metas e limiares em tempo de execução: valores fixos em compilação (energy_config.h).
-- Calibração individual do LM35: vale a tolerância do sensor (±0,5 °C a 25 °C) e a calibração de fábrica do ADC gravada no eFuse.
+- Temperatura e aquisição analógica (LM35 por ADC + DMA, alerta de superaquecimento): removidas em 07/11/2026 por decisão do usuário (eram US-002, AC-003 e AC-004).
+- LED externo: o estado aparece só no LED da própria placa (GPIO2).
 - Uso do núcleo 0 do ESP32 pelo firmware: fica para o sistema e para o Wi-Fi de outro WPS.
 
 ## Suposições
@@ -241,16 +225,17 @@ código, para entregar o WPS 3.1.
 |---|---|---|---|
 | ASM-001 | O período da meta é de 24 h contadas a partir do boot (sem RTC/NTP nesta etapa) | confirmada | Usuário escolheu "Diária + limite de potência" sabendo que o período começa no boot (02/11/2026) |
 | ASM-002 | Rede de 220 V com as faixas do PRODIST Módulo 8 (adequada 202–231 V; precária 191–202 / 231–233 V; crítica fora disso) | confirmada | Usuário escolheu 220 V (02/11/2026); faixas do PRODIST para 380/220 V |
-| ASM-003 | O ADC1 adquire um LM35 (GPIO34, canal 6) em modo contínuo com DMA; como o modo contínuo do ESP32 não amostra abaixo de 20 kHz, cada amostra de 1 kHz é a média de 20 conversões, entregue em blocos ping-pong de 100 amostras | confirmada | Usuário escolheu "Temperatura interna" na Pico W (02/11/2026) e "LM35 externo com ADC contínuo + DMA" no ESP32 (05/11/2026), que não tem sensor interno utilizável pelo ADC com DMA |
+| ASM-003 | O ADC1 adquire um LM35 (GPIO34, canal 6) em modo contínuo com DMA; como o modo contínuo do ESP32 não amostra abaixo de 20 kHz, cada amostra de 1 kHz é a média de 20 conversões, entregue em blocos ping-pong de 100 amostras | invalidada | Usuário escolheu "Temperatura interna" na Pico W (02/11/2026) e "LM35 externo com ADC contínuo + DMA" no ESP32 (05/11/2026), que não tem sensor interno utilizável pelo ADC com DMA. Invalidada em 07/11/2026: o usuário não vai usar o LM35 (ver ASM-013) |
 | ASM-004 | A prova de bancada é de 10 min sem nenhum estouro de deadline | confirmada | Usuário escolheu 10 minutos (02/11/2026) |
 | ASM-005 | Meta padrão de 5 kWh/dia e limite de 3000 W sustentado por 10 s, com aviso em 80% | confirmada | Confirmada pelo usuário (02/11/2026) |
-| ASM-006 | Deadlines: pzem 500 ms (período 1 s), adc 100 ms (um bloco), proc 50 ms após a amostra; status e report são "soft" e não entram no aceite | confirmada | Confirmada pelo usuário (02/11/2026) |
-| ASM-007 | Limiares: frequência 59,5–60,5 Hz, fator de potência 0,92 com carga ≥ 100 W, superaquecimento 70 °C (some abaixo de 65 °C), persistência de 3 leituras para os alertas | confirmada | Confirmada pelo usuário (02/11/2026) |
+| ASM-006 | Deadlines: pzem 500 ms (período 1 s), proc 50 ms após a amostra; status e report são "soft" e não entram no aceite | confirmada | Confirmada pelo usuário (02/11/2026) |
+| ASM-007 | Limiares: frequência 59,5–60,5 Hz, fator de potência 0,92 com carga ≥ 100 W, persistência de 3 leituras para os alertas | confirmada | Confirmada pelo usuário (02/11/2026) |
 | ASM-008 | O self-test do WPS 3.2 continua como segundo alvo, com as tarefas pzem, status e report | confirmada | Confirmada pelo usuário para a Pico W (02/11/2026); mantido na migração para o ESP32 (05/11/2026) |
 | ASM-009 | A placa é um ESP32 DevKit de 30/38 pinos (ESP32-WROOM-32) com LED azul no GPIO2 e console na UART0 pela ponte USB-serial (CP2102/CH340), a 115200 bps | confirmada | Usuário escolheu "ESP32 DevKit (WROOM-32)" (05/11/2026) |
 | ASM-010 | O firmware compila com ESP-IDF 6.x (plataforma espressif32 8.0.0) pelo PlatformIO e usa o FreeRTOS do próprio ESP-IDF, com tick de 1 kHz | confirmada | Usuário escolheu "ESP-IDF via PlatformIO" (05/11/2026) |
-| ASM-011 | Todas as tarefas do firmware e as interrupções que elas usam (timer, ADC, UART) ficam presas no núcleo 1 (APP_CPU); o núcleo 0 fica com o sistema. Assim a análise de tempo de resposta de núcleo único continua valendo | confirmada | Usuário confirmou "tudo no núcleo 1" (05/11/2026) |
-| ASM-012 | O LM35 é alimentado em 5 V pelo pino VIN/5V do DevKit (com USB) e a saída vai direto no GPIO34, com atenuação de 2,5 dB (até ~1,25 V, ou 125 °C) e a calibração de fábrica do ADC | confirmada | Usuário confirmou o circuito (05/11/2026) |
+| ASM-011 | Todas as tarefas do firmware e as interrupções que elas usam (timer e UARTs) ficam presas no núcleo 1 (APP_CPU); o núcleo 0 fica com o sistema. Assim a análise de tempo de resposta de núcleo único continua valendo | confirmada | Usuário confirmou "tudo no núcleo 1" (05/11/2026) |
+| ASM-012 | O LM35 é alimentado em 5 V pelo pino VIN/5V do DevKit (com USB) e a saída vai direto no GPIO34, com atenuação de 2,5 dB (até ~1,25 V, ou 125 °C) e a calibração de fábrica do ADC | invalidada | Usuário confirmou o circuito (05/11/2026) e depois decidiu não usar o LM35 (07/11/2026) |
+| ASM-013 | A aquisição do WPS 3.1 fica com a UART do PZEM disparada por timer de hardware; o ADC e o DMA saem junto com o LM35, mesmo o card citando "ADC e DMA" | confirmada | Usuário escolheu "Remover ADC + DMA inteiros" (07/11/2026); a aceitação pelo professor fica por conta do usuário |
 
 ## Perguntas em aberto
 

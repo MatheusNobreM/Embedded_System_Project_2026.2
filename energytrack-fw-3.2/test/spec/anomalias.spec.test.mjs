@@ -8,10 +8,6 @@ test('@spec:AC-002 — sensor sem resposta vira alerta depois de 5 falhas seguid
   assertCriterion(anomaly(), 'AC-002');
 });
 
-test('@spec:AC-004 — superaquecimento do quadro (LM35) vira alerta', () => {
-  assertCriterion(anomaly(), 'AC-004');
-});
-
 test('@spec:AC-011 — tensão fora da faixa adequada do PRODIST (rede de 220 V)', () => {
   assertCriterion(anomaly(), 'AC-011');
 });

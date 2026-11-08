@@ -5,7 +5,7 @@ teste `test/spec/entregaveis.spec.test.mjs` lê `serial-bancada.log` e só
 aprova se o último relatório mostrar:
 
 - pelo menos 600 s de execução (`rt t=600s` ou mais);
-- `miss=0` nas tarefas `proc`, `adc` e `pzem`, com `rmax` abaixo do deadline `d`;
+- `miss=0` nas tarefas `proc` e `pzem`, com `rmax` abaixo do deadline `d`;
 - pelo menos 95% de leituras válidas do PZEM (`PZEM ok=... falha=...`);
 - a linha `>>> RT PASS <<<`.
 
@@ -15,7 +15,7 @@ aprova se o último relatório mostrar:
    `pio run -e energytrack_fw -t upload` (ou **Upload** no PlatformIO, ambiente
    `energytrack_fw`). Se a gravação não começar, segure o botão BOOT ao conectar.
 2. Ligue o PZEM-004T na UART2 (GPIO17 TX → RX do PZEM, GPIO16 RX ← TX do
-   PZEM) pelo conversor de nível, com uma carga ligada, e o LM35 no GPIO34.
+   PZEM), com o PZEM ligado à rede e o transformador de corrente numa carga.
 3. Feche qualquer monitor serial aberto na porta do DevKit.
 4. Ainda em `energytrack-fw-3.2`, rode:
 
