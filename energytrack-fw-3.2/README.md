@@ -15,7 +15,8 @@ firmware rodam no núcleo 1. O estado aparece no LED da própria placa (GPIO2).
 
 Diagrama de tarefas, prioridades, deadlines e a análise de tempo de resposta:
 [docs/diagrama-tarefas.md](docs/diagrama-tarefas.md). Explicação em linguagem
-simples: [docs/como-funciona.md](docs/como-funciona.md).
+simples: [docs/como-funciona.md](docs/como-funciona.md). Cada pasta, arquivo e
+função explicados em detalhe: [docs/guia-do-codigo.md](docs/guia-do-codigo.md).
 
 ## Estrutura
 

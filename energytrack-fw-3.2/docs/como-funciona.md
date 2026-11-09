@@ -4,7 +4,8 @@ Guia em linguagem simples do código em `energytrack-fw-3.2/`. Serve para quem
 sabe C mas nunca mexeu com FreeRTOS nem com o ESP32. Para o diagrama formal
 (prioridades, deadlines e a prova de tempo real) veja
 [diagrama-tarefas.md](diagrama-tarefas.md); para compilar e testar, o
-[README](../README.md).
+[README](../README.md); para cada função explicada em detalhe, o
+[guia-do-codigo.md](guia-do-codigo.md).
 
 > Até 05/11/2026 este firmware rodava numa Raspberry Pi Pico W. A versão da
 > Pico W está na branch `pico-w`; este guia descreve a do ESP32 DevKit.
