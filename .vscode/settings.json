@@ -1,4 +1,5 @@
 {
   "cmake.configureOnOpen": false,
-  "platformio-ide.autoOpenPlatformIOIDEHomePage": false
+  "platformio-ide.autoOpenPlatformIOIDEHomePage": false,
+  "cmake.sourceDirectory": "C:/Users/matheus.nobre/Workspace/Faculdade/2026.2/SE/energytrack-fw-wps3.2/energytrack-fw-3.2"
 }
