@@ -81,3 +81,90 @@ export function benchProblems(log, hardTasks, minSeconds = 600) {
   if (!/>>> RT PASS <<</.test(log)) problems.push('a linha ">>> RT PASS <<<" não aparece no log');
   return problems;
 }
+
+/* ---- bancada com a rede ligada (feature telemetria-wifi, AC-028) ---- */
+
+/** Última linha "rede: ..." do log: { wifi, ip, ok, falha } ou { desligada: motivo }. */
+export function parseLastNetLine(log) {
+  let last = null;
+  for (const line of log.split(/\r?\n/)) {
+    const off = line.match(/rede: desligada \((.*)\)/);
+    if (off) { last = { desligada: off[1] }; continue; }
+    const m = line.match(/rede: wifi=(conectado|desconectado)(?: ip=(\S+))? \| envios ok=(\d+) falha=(\d+)/);
+    if (m) last = { wifi: m[1], ip: m[2] ?? '', ok: Number(m[3]), falha: Number(m[4]) };
+  }
+  return last;
+}
+
+/**
+ * Leituras gravadas pelo backend de teste (JSON Lines), já conferidas.
+ * { registros: [{ dados, recebido_em }], problemas: [texto] }
+ */
+export function parseReceived(jsonl, problemasDoContrato) {
+  const registros = [];
+  const problemas = [];
+  jsonl.split(/\r?\n/).forEach((linha, i) => {
+    if (!linha.trim()) return;
+    let r;
+    try {
+      r = JSON.parse(linha);
+    } catch {
+      problemas.push(`linha ${i + 1} do arquivo do backend não é JSON`);
+      return;
+    }
+    const fora = problemasDoContrato(r?.dados);
+    if (fora.length) problemas.push(`linha ${i + 1} fora do contrato: ${fora.join('; ')}`);
+    else registros.push(r);
+  });
+  return { registros, problemas };
+}
+
+/** Envios do último boot da última placa que mandou: seq recomeça quando a placa reinicia. */
+function lastRun(registros) {
+  const device = registros.at(-1).dados.device;
+  const run = [];
+  for (const r of registros) {
+    if (r.dados.device !== device) continue;
+    if (run.length && r.dados.seq <= run.at(-1).dados.seq) run.length = 0;
+    run.push(r);
+  }
+  return run;
+}
+
+/**
+ * Problemas que impedem o aceite da bancada com rede (lista vazia = aceito):
+ * o log serial passa no aceite de tempo real com o Wi-Fi conectado, e o
+ * backend de teste recebeu, dentro do contrato, pelo menos minPct% dos envios
+ * de uma sequência que cobre pelo menos minSeconds.
+ */
+export function telemetryBenchProblems(log, jsonl, hardTasks, problemasDoContrato, { minSeconds = 600, minPct = 95 } = {}) {
+  const problems = benchProblems(log, hardTasks, minSeconds).map((p) => `serial: ${p}`);
+
+  const net = parseLastNetLine(log);
+  if (!net) problems.push('serial: nenhuma linha "rede:" no log (o firmware gravado é de antes da telemetria?)');
+  else if (net.desligada !== undefined) problems.push(`serial: a rede estava desligada (${net.desligada}): configure o Wi-Fi e a URL no menuconfig`);
+  else {
+    if (net.wifi !== 'conectado') problems.push('serial: o último relatório mostra o Wi-Fi desconectado');
+    if (net.ok === 0) problems.push('serial: nenhum envio ok ao backend');
+  }
+
+  const { registros, problemas } = parseReceived(jsonl, problemasDoContrato);
+  problems.push(...problemas.map((p) => `backend: ${p}`));
+  if (registros.length === 0) {
+    problems.push('backend: o backend de teste não recebeu nenhuma leitura');
+    return problems;
+  }
+  const run = lastRun(registros);
+  const first = run[0].dados;
+  const last = run.at(-1).dados;
+  const expected = last.seq - first.seq + 1;
+  const got = new Set(run.map((r) => r.dados.seq)).size;
+  if (got * 100 < expected * minPct) {
+    problems.push(`backend: recebeu ${got} de ${expected} envios (seq ${first.seq} a ${last.seq}); precisa de >= ${minPct}%`);
+  }
+  const span = last.uptime_s - first.uptime_s;
+  if (span < minSeconds) {
+    problems.push(`backend: as leituras cobrem ${span}s (uptime ${first.uptime_s}s a ${last.uptime_s}s); precisa de pelo menos ${minSeconds}s`);
+  }
+  return problems;
+}

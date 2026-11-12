@@ -18,7 +18,9 @@ O ESP32 lê o medidor de energia PZEM-004T uma vez por segundo e calcula na
 hora a potência, a energia do dia, como está a meta de consumo e se tem algo
 errado na rede. Depois mostra o resultado no LED da própria placa e manda um
 relatório pela porta serial (o cabo USB) a cada 2 segundos. Tudo isso medindo
-se cada etapa terminou dentro do prazo (o *deadline*).
+se cada etapa terminou dentro do prazo (o *deadline*). Com o Wi-Fi
+configurado, a cada 5 segundos ele também manda tudo isso para um **backend**,
+em JSON, pela rede.
 
 ## 2. A ideia geral
 
@@ -33,21 +35,27 @@ O firmware funciona como uma pequena linha de produção. Cada "estação" é um
                                 │
                                 └──► fila de amostras ──► [proc] ──► "fotografia" ──┬──► [status] ──► LED (GPIO2)
                                                                                     │
-                                                                                    └──► [report] ──► console (printf)
+                                                                                    ├──► [report] ──► console (printf)
+                                                                                    │
+                                                          (núcleo 0)                └──► [net] ──► Wi-Fi ──► backend
 ```
 
 - `pzem` **busca os dados** (aquisição).
 - `proc` **faz as contas** (processamento).
 - `status` e `report` **mostram o resultado** (saída).
+- `net` **manda o resultado para o backend** pela rede (telemetria).
 
 Cada recurso tem **um único dono**: só a `pzem` usa a UART2, só a `proc` mexe
-no estado das contas, só a `status` mexe no LED e só a `report` escreve no
-console. Assim duas tarefas nunca brigam pelo mesmo recurso.
+no estado das contas, só a `status` mexe no LED, só a `report` escreve no
+console e só a `net` usa o Wi-Fi. Assim duas tarefas nunca brigam pelo mesmo
+recurso.
 
-**Dois núcleos, um usado.** O ESP32 tem dois núcleos. Todas as tarefas do
-firmware e as interrupções delas ficam presas no **núcleo 1**; o núcleo 0
-fica com as tarefas do próprio ESP-IDF (e, num WPS futuro, com o Wi-Fi).
-Assim a prova de tempo real (seção 8) continua sendo a de um processador só.
+**Dois núcleos, cada um com seu papel.** O ESP32 tem dois núcleos. As
+tarefas de aquisição, contas e saída, e as interrupções delas, ficam presas no
+**núcleo 1**. O núcleo 0 fica com as tarefas do próprio ESP-IDF e com a
+**rede**: a tarefa `net`, o Wi-Fi e a pilha TCP/IP. Assim a prova de tempo
+real (seção 8) continua sendo a de um processador só, e uma rede lenta ou
+fora do ar não atrasa as medições.
 
 ## 3. Seis conceitos que aparecem no código
 
@@ -100,16 +108,37 @@ para cada mensagem:
   meta, as anomalias e a linha de tempo real (`rt t=...`). Depois de 10 minutos
   sem nenhum estouro ela imprime `>>> RT PASS <<<`. O `printf` cai num buffer
   do driver da UART0, que uma interrupção vai esvaziando: a tarefa não fica
-  presa esperando a serial.
+  presa esperando a serial. Uma linha `rede:` mostra o Wi-Fi, o IP e quantos
+  envios ao backend deram certo ou falharam.
 
-## 5. As quatro tarefas
+### 4.4 O envio ao backend (a cada 5 segundos, no núcleo 0)
 
-| Tarefa | Prioridade | Quem acorda | Prazo (deadline) | O que faz |
-|---|---|---|---|---|
-| `proc` | 5 (maior) | chegada de leitura | 50 ms | Contas: energia, meta, anomalias |
-| `pzem` | 3 | timer, a cada 1 s | 500 ms | Lê o PZEM pela UART2 |
-| `status` | 2 | relógio, a cada 50 ms | — (não crítica) | LED |
-| `report` | 1 (menor) | relógio, a cada 2 s | — (não crítica) | Relatório no console |
+A **`net_task()`** espia a mesma fotografia e:
+
+1. monta um JSON com a medição, a energia, a meta e as anomalias
+   (`telemetry_build_json()`). Os números vão em unidades normais (221.3 V,
+   45.312 Wh), e `leitura` vai `null` se o PZEM ainda não respondeu;
+2. se o Wi-Fi tem IP, faz um `POST` HTTP para a URL do backend
+   (`http_post_json()`), esperando a resposta por no máximo 3 s, dormindo;
+3. conta o resultado: resposta 2xx = ok; sem Wi-Fi, sem resposta, outro
+   código ou JSON grande demais = falha, cada uma no seu contador.
+
+Cada envio leva um número `seq` que sobe sempre, então o backend percebe
+quando um envio se perdeu. Se a rede cair, a `net` só conta a falha e tenta de
+novo no ciclo seguinte. O Wi-Fi reconecta sozinho.
+
+Sem SSID ou URL configurados no menuconfig, a `net` nem é criada e o
+relatório mostra `rede: desligada (sem SSID)`.
+
+## 5. As tarefas
+
+| Tarefa | Núcleo | Prioridade | Quem acorda | Prazo (deadline) | O que faz |
+|---|---|---|---|---|---|
+| `proc` | 1 | 5 (maior) | chegada de leitura | 50 ms | Contas: energia, meta, anomalias |
+| `pzem` | 1 | 3 | timer, a cada 1 s | 500 ms | Lê o PZEM pela UART2 |
+| `status` | 1 | 2 | relógio, a cada 50 ms | — (não crítica) | LED |
+| `report` | 1 | 1 (menor) | relógio, a cada 2 s | — (não crítica) | Relatório no console |
+| `net` | **0** | 2 | relógio, a cada 5 s | — (não crítica) | Manda o JSON ao backend |
 
 **Por que nessa ordem?** As duas primeiras fazem parte do critério de aceite
 ("hard") e por isso ficam acima das duas de saída. Entre elas, quem tem o prazo
@@ -118,10 +147,14 @@ passa a maior parte do tempo dormindo enquanto espera a UART. Por isso, mesmo
 com prioridade menor, ela não atrasa ninguém. A prioridade 4 está vaga: era da
 tarefa `adc`, que lia um sensor de temperatura e saiu em 07/11/2026.
 
+A `net` fica fora dessa conta: ela roda no outro núcleo, então não disputa a
+CPU com as quatro de cima.
+
 Existe ainda a tarefa `init` (prioridade 10, núcleo 1). Ela roda uma vez no
 boot, monta tudo e se apaga. É ela quem instala os drivers: o ESP-IDF põe a
 interrupção de cada driver no núcleo de quem o instalou, então todas ficam no
-núcleo 1.
+núcleo 1. O Wi-Fi é a exceção de propósito: quem o liga é a `net`, no núcleo
+0, e a `init` espera ela terminar antes de ligar o timer do PZEM.
 
 ## 6. Arquivo por arquivo
 
@@ -138,6 +171,8 @@ núcleo 1.
 | `proc_task()` | Processa cada leitura e publica a fotografia. |
 | `status_task()` | Acende/apaga o LED conforme o estado. |
 | `report_task()` | Imprime o relatório e decide se já dá `RT PASS`. |
+| `start_network()` | Confere o Wi-Fi e a URL do menuconfig e, se estiverem certos, cria a `net` no núcleo 0. |
+| `net_task()` | Liga o Wi-Fi e, a cada 5 s, manda o JSON ao backend e conta o resultado. |
 | `send_sample()` | Põe a amostra na fila da `proc`. Se a fila estiver cheia, conta estouro de quem enviou. |
 | `account_lost()` | Leva para o monitor as liberações que a interrupção não conseguiu entregar. |
 | `now_us()` | Hora em µs desde o boot (`esp_timer_get_time`), a mesma nas ISRs e nas tarefas. |
@@ -167,8 +202,9 @@ depois de 60 s com no máximo 5% de falhas, diz `SELFTEST PASS`).
 
 | Arquivo | Para que serve |
 |---|---|
-| `platformio.ini` | Dois ambientes, um por firmware (`energytrack_fw` e `energytrack_selftest`), com a plataforma espressif32 fixada (ESP-IDF 6.1). |
-| `sdkconfig.defaults` | CPU a 240 MHz, tick do FreeRTOS de 1 ms, console na UART0 a 115200 bps, detecção de estouro de pilha. Substitui o antigo `FreeRTOSConfig.h`. |
+| `platformio.ini` | Dois ambientes, um por firmware (`energytrack_fw` e `energytrack_selftest`), com a plataforma espressif32 fixada (ESP-IDF 6.1) e a partição de 1,5 MB para a aplicação (com a rede, o firmware passou de 1 MB). |
+| `sdkconfig.defaults` | CPU a 240 MHz, tick do FreeRTOS de 1 ms, console na UART0 a 115200 bps, detecção de estouro de pilha. Substitui o antigo `FreeRTOSConfig.h`. Para a rede: Wi-Fi e pilha TCP/IP no núcleo 0 e nada gravado na flash. |
+| `src/Kconfig.projbuild` | O menu "EnergyTrack - telemetria" do menuconfig: rede Wi-Fi, senha e URL do backend (vazios = sem rede). |
 | `CMakeLists.txt` e `src/CMakeLists.txt` | Receita do ESP-IDF. O segundo escolhe quais fontes entram em cada firmware. |
 
 ### `src/hal/` — conversa com o hardware
@@ -183,6 +219,8 @@ depois de 60 s com no máximo 5% de falhas, diz `SELFTEST PASS`).
 | | `pzem_crc16()` | Calcula o CRC que detecta bytes corrompidos. |
 | `pzem_link.c` | `pzem_link_read()` | A conversa completa pela UART2 (enviar, esperar dormindo, ler, decodificar). |
 | `acq_timer.c` | `acq_timer_start()` | Programa o gptimer para chamar uma função a cada 1 s, com a hora exata. |
+| `wifi_link.c` | `wifi_link_start()`, `wifi_link_is_up()`, `wifi_link_ip()`, `wifi_link_device_id()` | Liga o Wi-Fi (sem gravar nada na flash), reconecta sozinho e diz se há IP. O identificador da placa vem do MAC. |
+| `http_post.c` | `http_post_init()`, `http_post_json()` | O `POST` do JSON para o backend, com 3 s de limite. |
 
 `pzem_modbus.c` não depende do hardware, então também é testado no PC.
 
@@ -205,12 +243,15 @@ hora como parâmetro. Por isso rodam igual na placa e no PC, onde são testados.
 | | `proc_snapshot()` | Monta a fotografia lida pelo LED e pelo relatório. |
 | | `proc_led_pattern()`, `led_pattern_level()` | Decidem o pisca do LED. |
 | | `proc_default_config()` | Lê os valores de `energy_config.h`. |
+| `telemetry.c` | `telemetry_build_json()` | Monta o JSON do backend, sem `float` e nunca cortado. |
+| | `telemetry_classify()`, `telemetry_record()` | Decidem se o envio deu certo e contam cada falha pelo motivo. |
+| | `telemetry_check_config()`, `telemetry_format_status()` | Conferem o Wi-Fi e a URL e escrevem a linha `rede:` do relatório. |
 
 ### `src/rt/` — tempo real (C puro)
 
 | Arquivo | O que faz |
 |---|---|
-| `rt_tasks.c` | **A tabela das tarefas**: nome, prioridade, período, deadline e orçamento de CPU. O firmware cria as tarefas a partir dela, e o diagrama é conferido contra ela. |
+| `rt_tasks.c` | **A tabela das tarefas**: nome, prioridade, período, deadline e orçamento de CPU. O firmware cria as tarefas a partir dela, e o diagrama é conferido contra ela. A `net` (núcleo 0) fica numa entrada à parte, `RT_NET_TASK`, fora da análise do núcleo 1. |
 | `rt_monitor.c` | O "cronômetro" de cada tarefa. `rt_monitor_job_done()` mede o tempo de resposta e conta estouro; `rt_monitor_releases_lost()` conta liberações perdidas; `rt_monitor_format()` escreve o trecho `nome:jobs=...,miss=...` do relatório. |
 | `rt_sched.c` | A análise de tempo de resposta (seção 8). Roda só nos testes no PC, não vai para a placa. |
 
@@ -220,8 +261,9 @@ hora como parâmetro. Por isso rodam igual na placa e no PC, onde são testados.
 |---|---|
 | `test/host/*.c` | Testes em C que rodam no PC. Cada caso imprime `ok`/`not ok`. |
 | `test/spec/*.mjs` | Ligam cada teste a um critério de aceite da especificação (`@spec:AC-xxx`). |
-| `test/bench/` | Onde fica o log da bancada (prova de 10 min na placa). |
+| `test/bench/` | Onde ficam o log da bancada (prova de 10 min na placa) e o que o backend de teste recebeu. |
 | `tools/capturar-serial.ps1` | Reinicia o DevKit e grava o log da serial nesse arquivo. |
+| `tools/backend-teste.mjs` | Backend de teste em Node: recebe o POST da placa, confere o JSON e grava cada leitura. |
 
 ## 7. Os cálculos, com números
 
@@ -319,6 +361,8 @@ estourar.
 | mudar prioridade, período ou deadline | `src/rt/rt_tasks.c` **e** a tabela de `docs/diagrama-tarefas.md` (um teste confere) |
 | mudar o que aparece no relatório | funções `print_*` em `app/energytrack_main.c` |
 | mudar frequência da CPU, tick ou console | `sdkconfig.defaults` (e apague os `sdkconfig.<ambiente>` gerados) |
+| configurar o Wi-Fi e a URL do backend | menuconfig, menu "EnergyTrack - telemetria" (veja o README) |
+| mudar o intervalo de envio ao backend | `RT_NET_TASK` em `src/rt/rt_tasks.c` **e** a linha `net` de `docs/diagrama-tarefas.md` |
 
 Depois de mexer, rode os testes (veja o README). Eles avisam se alguma conta,
 limite ou o diagrama deixou de bater com a especificação.

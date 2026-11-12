@@ -42,6 +42,10 @@ sabe C mas está chegando agora no projeto.
 5. Cada etapa tem o tempo cronometrado. Se alguma passar do prazo (deadline),
    o relatório acusa.
 
+Com o Wi-Fi configurado no menuconfig, entra uma sexta peça: a cada 5 s, uma
+tarefa no **outro núcleo** do ESP32 pega a mesma fotografia, monta um **JSON**
+e manda para o **backend** por HTTP POST (feature telemetria-wifi).
+
 ---
 
 ## 2. As pastas e por que elas são separadas
@@ -50,12 +54,13 @@ sabe C mas está chegando agora no projeto.
 energytrack-fw-3.2/
 ├── include/        configurações: pinos, recursos do ESP32, metas e limites
 ├── src/
-│   ├── hal/        conversa com o hardware: UART, LED, timer, protocolo do PZEM
-│   ├── proc/       contas: energia, meta, anomalias (C puro)
-│   └── rt/         tempo real: tabela de tarefas, cronômetro, análise (C puro)
+│   ├── hal/        conversa com o hardware: UART, LED, timer, protocolo do PZEM, Wi-Fi, HTTP
+│   ├── proc/       contas: energia, meta, anomalias, JSON da telemetria (C puro)
+│   ├── rt/         tempo real: tabela de tarefas, cronômetro, análise (C puro)
+│   └── Kconfig.projbuild   opções do menuconfig: Wi-Fi e URL do backend
 ├── app/            os programas: cria as tarefas e liga tudo (FreeRTOS)
-├── test/           testes no PC (host), ponte com a spec e log da bancada
-├── tools/          script que grava o log serial da placa
+├── test/           testes no PC (host), ponte com a spec e logs da bancada
+├── tools/          gravação do log serial da placa e backend de teste
 └── docs/           esta documentação
 ```
 
@@ -91,6 +96,9 @@ energytrack-fw-3.2/
 - Dentro de `hal/`, o `pzem_modbus.c` também é C puro (só monta e confere
   bytes), então é testável no PC. Os outros arquivos de `hal/` chamam o ESP-IDF
   e só rodam na placa.
+- A telemetria segue a mesma divisão: o JSON e a contagem dos envios ficam em
+  `proc/telemetry.c` (C puro, testado no PC), e o Wi-Fi e o POST ficam em
+  `hal/wifi_link.c` e `hal/http_post.c` (só na placa).
 - Só `app/` conhece as tarefas e as filas. Se um dia o FreeRTOS for trocado,
   `proc/` e `rt/` não mudam.
 
@@ -137,7 +145,8 @@ platformio.ini                       src/CMakeLists.txt
 | `hal/pzem_link.c` | ✔ | ✔ | |
 | `hal/pzem_modbus.c` | ✔ | ✔ | ✔ |
 | `hal/acq_timer.c` | ✔ | | |
-| `proc/*.c` | ✔ | | ✔ |
+| `hal/wifi_link.c`, `hal/http_post.c` | ✔ | | |
+| `proc/*.c` (inclusive `telemetry.c`) | ✔ | | ✔ |
 | `rt/rt_monitor.c`, `rt/rt_tasks.c` | ✔ | | ✔ |
 | `rt/rt_sched.c` | | | ✔ (só no PC) |
 
@@ -145,10 +154,11 @@ Outros arquivos do build:
 
 | Arquivo | Para que serve |
 |---|---|
-| `platformio.ini` | Fixa a plataforma (`espressif32@8.0.0`, ESP-IDF 6.1), a placa (`esp32dev`), a velocidade do monitor (115200) e cria os dois ambientes. `monitor_rts = 0` e `monitor_dtr = 0` evitam que o monitor segure a placa em reset. |
+| `platformio.ini` | Fixa a plataforma (`espressif32@8.0.0`, ESP-IDF 6.1), a placa (`esp32dev`), a velocidade do monitor (115200) e cria os dois ambientes. `monitor_rts = 0` e `monitor_dtr = 0` evitam que o monitor segure a placa em reset. `board_build.partitions = partitions_singleapp_large.csv` dá 1,5 MB para a aplicação: com Wi-Fi, HTTP e TLS o firmware passou de 1 MB. |
 | `CMakeLists.txt` (raiz) | Receita padrão de projeto ESP-IDF. Só diz "o projeto se chama `energytrack_fw`". |
-| `src/CMakeLists.txt` | Escolhe as fontes conforme `ET_APP`, diz onde ficam os headers (`../include hal proc rt`), quais componentes do ESP-IDF são usados (UART, GPIO, gptimer, esp_timer, FreeRTOS) e liga `-Wall -Wextra` só no nosso código. |
-| `sdkconfig.defaults` | Configuração do ESP-IDF: CPU a 240 MHz, tick do FreeRTOS de 1 ms (1000 Hz), detecção de estouro de pilha, console na UART0 a 115200 bps, watchdog olhando os dois núcleos, flash de 4 MB. |
+| `src/CMakeLists.txt` | Escolhe as fontes conforme `ET_APP`, diz onde ficam os headers (`../include hal proc rt`), quais componentes do ESP-IDF são usados (UART, GPIO, gptimer, esp_timer, FreeRTOS e, só no `energytrack_fw`, Wi-Fi, netif, eventos, cliente HTTP e mbedtls) e liga `-Wall -Wextra` só no nosso código. |
+| `src/Kconfig.projbuild` | Cria o menu **"EnergyTrack - telemetria"** no menuconfig: `CONFIG_ET_WIFI_SSID`, `CONFIG_ET_WIFI_PASSWORD` e `CONFIG_ET_BACKEND_URL`, vazios por padrão. Os valores vão para `sdkconfig.energytrack_fw`, que não é versionado. |
+| `sdkconfig.defaults` | Configuração do ESP-IDF: CPU a 240 MHz, tick do FreeRTOS de 1 ms (1000 Hz), detecção de estouro de pilha, console na UART0 a 115200 bps, watchdog olhando os dois núcleos, flash de 4 MB. Para a rede: tarefa do Wi-Fi e lwIP no núcleo 0, Wi-Fi sem NVS e rádio sem calibração gravada (nada grava na flash). |
 
 ---
 
@@ -168,11 +178,13 @@ init_task()                   roda no núcleo 1, antes de qualquer outra tarefa
   1. board_init_console()     printf passa a usar o driver da UART0
   2. board_init_led()         GPIO2 como saída, LED apagado
   3. board_init_pzem_uart()   UART2 a 9600 bps nos GPIO17/16
-  4. cria as 3 filas          s_q_samples (8), s_q_snapshot (1), s_q_pzem_release (1)
+  4. cria as 4 filas          s_q_samples (8), s_q_snapshot (1), s_q_pzem_release (1), s_q_net (1)
   5. rt_monitor_init() x4     um cronômetro por tarefa, com o deadline de rt_tasks.c
   6. cria as 4 tarefas        proc, pzem, status, report (prioridades 5, 3, 2, 1)
-  7. acq_timer_start()        liga o timer de 1 s — só agora, com tudo pronto
-  8. vTaskDelete(NULL)        a init se apaga
+  7. start_network()          confere SSID/senha/URL do menuconfig; se estiverem certos,
+                              cria a net NO NÚCLEO 0 e espera (até 3 s) ela ligar o Wi-Fi
+  8. acq_timer_start()        liga o timer de 1 s — só agora, com tudo pronto
+  9. vTaskDelete(NULL)        a init se apaga
 ```
 
 Por que essa volta toda em vez de fazer tudo em `app_main()`? Porque o ESP-IDF
@@ -184,6 +196,12 @@ Assim a análise de tempo real vale para um núcleo só.
 E por que prioridade 10? Porque é maior que a de todas as tarefas que ela cria
 (1 a 5). Enquanto a `init` não se apaga, nenhuma delas roda, então nenhuma
 tarefa vê uma fila ainda não criada.
+
+A rede é a exceção que confirma a regra: a `net` é criada no **núcleo 0** e
+liga o Wi-Fi de lá, então a interrupção do rádio fica no núcleo 0, longe das
+tarefas medidas. A `init` espera a `net` avisar que o Wi-Fi iniciou
+(`ulTaskNotifyTake`, até 3 s) antes de ligar o timer: a partida do rádio
+(calibração, alocações) termina antes do primeiro trabalho cronometrado.
 
 ### 4.2 Um ciclo de medição (a cada 1 segundo)
 
@@ -215,13 +233,15 @@ dormindo, esperando a serial) e a `proc` leva menos de 1 ms.
 ```
 a cada 50 ms   status_task   espia a foto (xQueuePeek) → proc_led_pattern()
                              → led_pattern_level() → board_led_set()
-a cada 2 s     report_task   espia a foto → print_* → linha "rt t=..."
+a cada 2 s     report_task   espia a foto → print_* → linha "rede: ..." → linha "rt t=..."
                              → decide se já pode dizer ">>> RT PASS <<<"
+a cada 5 s     net_task      espia a foto → telemetry_build_json() → http_post_json()
+ (núcleo 0)                  → conta o resultado → publica o estado da rede em s_q_net
 ```
 
-`xQueuePeek` **lê sem retirar** a foto da fila. Por isso as duas tarefas de
-saída podem ler a mesma foto quantas vezes quiserem, e a `proc` só a troca
-quando chega uma leitura nova.
+`xQueuePeek` **lê sem retirar** a foto da fila. Por isso as tarefas de saída
+podem ler a mesma foto quantas vezes quiserem, e a `proc` só a troca quando
+chega uma leitura nova.
 
 ---
 
@@ -473,6 +493,73 @@ Tempo típico: os 25 bytes levam cerca de 26 ms para trafegar a 9600 bps. No
 pior caso, o laço dá 21 passos de 10 ms (220 ms dormindo), número usado como
 "suspensão" da tarefa `pzem` em `rt_tasks.c`.
 
+### 6.5 `wifi_link.c`: o Wi-Fi
+
+Chamado só pela tarefa `net`, no núcleo 0. Esconde o ESP-IDF da rede (netif,
+laço de eventos, driver do Wi-Fi) atrás de quatro funções.
+
+#### `bool wifi_link_start(const char *ssid, const char *password)`
+
+1. Cria um *event group* com o bit "tenho IP".
+2. Baixa o log do driver do Wi-Fi para WARN: o estado da rede aparece na
+   linha `rede:` do relatório, sem as dezenas de linhas INFO do driver.
+3. `esp_netif_init()` e `esp_event_loop_create_default()`: a pilha TCP/IP e o
+   laço de eventos do ESP-IDF (a tarefa do laço fica presa no núcleo 0).
+4. `esp_wifi_init()` e `esp_wifi_set_storage(WIFI_STORAGE_RAM)`: a
+   configuração fica só na RAM. Junto com o `sdkconfig.defaults` (Wi-Fi sem
+   NVS, rádio sem calibração gravada), **nada da rede grava na flash**. Isso
+   importa porque gravar na flash desliga o cache e pausa os **dois** núcleos:
+   poderia estourar o deadline do `proc`.
+5. Registra `on_event()` e configura a estação com SSID e senha (WPA2 se houver
+   senha, rede aberta se não).
+6. `esp_wifi_start()`. Não espera conectar: devolve na hora.
+
+Devolve `false` se algum passo falhou (a rede fica desligada e o relatório diz
+`falha ao iniciar o Wi-Fi ou o cliente HTTP`).
+
+#### `static void on_event(...)` (interna)
+
+Roda na tarefa do laço de eventos. É ela que mantém a conexão:
+
+| Evento | O que faz |
+|---|---|
+| `WIFI_EVENT_STA_START` | Primeira tentativa de conectar (`esp_wifi_connect`). |
+| `WIFI_EVENT_STA_DISCONNECTED` | Apaga o bit de IP e tenta de novo. Sem a rede por perto, o driver varre os canais (~2 s) e avisa outra vez: a reconexão é automática. |
+| `IP_EVENT_STA_GOT_IP` | Guarda o IP em texto e liga o bit "tenho IP". |
+| `IP_EVENT_STA_LOST_IP` | Apaga o bit e o IP. |
+
+O IP é escrito por esta tarefa e lido pela `net`: `set_ip()` e
+`wifi_link_ip()` copiam os 16 bytes dentro de uma seção crítica curta, então
+ninguém lê um IP pela metade.
+
+#### As outras funções
+
+| Função | O que faz |
+|---|---|
+| `wifi_link_is_up()` | `true` enquanto o bit "tenho IP" está ligado. |
+| `wifi_link_ip(out, len)` | Copia o IP atual (`"192.168.0.23"`, ou `""` sem conexão). |
+| `wifi_link_device_id(out, len)` | `"et-"` + o MAC do Wi-Fi em hexadecimal: o `device` do JSON, que identifica a placa no backend. |
+
+### 6.6 `http_post.c`: o POST ao backend
+
+#### `bool http_post_init(const char *url)`
+
+Cria **um** cliente HTTP do ESP-IDF para a URL do menuconfig, com
+`timeout_ms = 3000` e o cabeçalho `Content-Type: application/json`. O cliente
+é reaproveitado em todos os envios: se o backend deixar, a conexão TCP fica
+aberta entre um POST e outro. Para `https://`, `esp_crt_bundle_attach` usa o
+pacote de certificados raiz do ESP-IDF (CAs públicas).
+
+#### `bool http_post_json(const char *body, int len, int *status)`
+
+Põe o corpo e faz o POST (`esp_http_client_perform`). A tarefa **dorme**
+dentro do FreeRTOS enquanto espera a rede, até 3 s por etapa. Devolve:
+
+- `true` e o código em `*status` quando houve resposta HTTP (200, 201, 404,
+  500...). Quem decide se o código é sucesso é `telemetry_classify()`.
+- `false` (e `*status = 0`) quando a conexão falhou ou o tempo esgotou. Nesse
+  caso fecha a conexão, para o próximo envio abrir outra limpa.
+
 ---
 
 ## 7. `src/proc/`: as contas
@@ -648,6 +735,59 @@ distribui o trabalho para `energy`, `goal` e `anomaly`.
 | `proc_led_pattern(s)` | Decide o LED a partir da foto, nesta ordem: **pisca rápido** se há qualquer anomalia (fora "sensor sem resposta"), meta estourada ou alerta de potência; **pisca devagar** se o sensor não responde ou ainda não houve nenhuma leitura; senão, **aceso fixo**. |
 | `led_pattern_level(pattern, t_us)` | Diz se o LED deve estar aceso **neste instante**. Divide o tempo em fatias: 500 ms para o lento (aceso 500, apagado 500 → 1 Hz) e 100 ms para o rápido (5 Hz). Fatia par = aceso, ímpar = apagado. Como depende só do relógio, a `status_task` não precisa guardar estado do pisca. |
 
+### 7.5 `telemetry.c`: o JSON para o backend e a contagem dos envios
+
+É a parte da telemetria que não depende de rede, por isso é testada no PC
+(`test/host/test_telemetry.c`). O contrato do JSON (campos, unidades, exemplo)
+está na especificação da feature telemetria-wifi
+(`.spec/features/telemetria-wifi/spec.md`) e no README.
+
+#### `int telemetry_build_json(h, s, buf, len)`
+
+Monta o JSON a partir do cabeçalho (`device`, `seq`, `uptime_s`) e da
+fotografia, num buffer fixo (`TELEMETRY_JSON_MAX` = 768 bytes; o pior caso
+tem 621). Detalhes:
+
+- **Sem `float`.** Os números saem com divisão e resto dos inteiros:
+  `voltage_dv = 2213` → `221.3`, `current_ma = 1234` → `1.234`, `day_mwh =
+  45312` → `45.312`. O JSON leva unidades normais (V, A, W, Hz, Wh), nunca as
+  internas.
+- **Sem leitura válida ainda** (`has_reading = false`): sai `"leitura":null`,
+  e não zeros que pareceriam 0 V.
+- **Anomalias como nomes**: `["SUBTENSAO","FREQUENCIA"]`, a partir da máscara
+  de bits, usando `anomaly_name()`.
+- **Nunca sai cortado.** Um escritor interno (`put()`, com `vsnprintf`) para na
+  primeira coisa que não cabe. Aí a função devolve `-1` e zera o buffer, e a
+  `net` não envia nada. Também devolve `-1` se o `device` tiver algo que
+  precisaria de escape no JSON (só aceita letras, dígitos, `-` e `_`).
+
+#### Contagem dos envios
+
+| Função | O que faz |
+|---|---|
+| `telemetry_stats_init(st)` | Zera os contadores. |
+| `telemetry_next_seq(st)` | O `seq` do ciclo que começa. Sobe a cada ciclo, com ou sem sucesso, então um buraco na sequência mostra ao backend um envio perdido. |
+| `telemetry_classify(json_ok, wifi_up, got_response, http_status)` | Decide o resultado do ciclo, nesta ordem: JSON não coube → `TELEM_ERRO_JSON`; sem IP → `TELEM_SEM_WIFI`; sem resposta → `TELEM_ERRO_REDE`; resposta 200 a 299 → `TELEM_OK`; outro código → `TELEM_ERRO_HTTP`. |
+| `telemetry_record(st, outcome, http_status)` | Soma no contador do motivo e guarda o último resultado (e o último código HTTP). |
+| `telemetry_failures(st)` | Total de falhas, somando os quatro motivos. |
+
+#### Configuração e a linha do relatório
+
+| Função | O que faz |
+|---|---|
+| `telemetry_check_config(ssid, password, url)` | Confere o que veio do menuconfig: SSID presente e com até 32 caracteres, senha vazia ou de 8 a 63, URL começando com `http://` ou `https://` e com host. Devolve `TELEM_CFG_OK` ou o motivo de a rede ficar desligada. |
+| `telemetry_cfg_reason(cfg)` | O motivo em texto (`"sem SSID"`, `"sem URL do backend"`...). |
+| `telemetry_format_status(st, buf, len)` | Escreve a linha `rede: ...` do relatório (exemplo abaixo). O teste da bancada com rede lê essa linha, então o formato não pode mudar sem mexer em `test/spec/lib/bench.mjs`. |
+
+```
+rede: wifi=conectado ip=192.168.0.23 | envios ok=118 falha=2 (wifi=1 rede=0 http=1 json=0) | ultimo=HTTP 503 | seq=120 | envio max=85ms
+rede: desligada (sem SSID)
+```
+
+`telemetry_status_t` é o que a `net` publica para a `report` na fila
+`s_q_net`: a configuração (`cfg`), se há IP (`wifi_up`), o IP, o envio mais
+demorado (`max_send_us`) e os contadores.
+
 ---
 
 ## 8. `src/rt/`: o tempo real
@@ -680,6 +820,12 @@ O que cada coluna quer dizer (campos de `rt_task_param_t`):
 `RT_ISR_LOAD` é uma "tarefa de mentira" com prioridade 255: representa as
 interrupções e o kernel do núcleo 1 (tick, UARTs, gptimer) como 50 µs a cada
 1 ms. Só é usada na análise.
+
+`RT_NET_TASK` é a tarefa `net` (prioridade 2, período e deadline de 5 s,
+suspensão de 3 s, o limite de espera do HTTP, soft). Ela fica **fora** de
+`RT_TASKS[]` de propósito: roda no núcleo 0, então não disputa a CPU das
+tarefas acima e não entra na análise do núcleo 1. Os números dela aparecem no
+diagrama, e o teste confere que estão iguais aos do código.
 
 O `enum rt_task_id_t` (`RT_TASK_PROC`, `RT_TASK_PZEM`, ...) é o índice usado
 em todos os vetores do firmware (`s_mon[]`, `s_task[]`, `RT_TASKS[]`).
@@ -763,8 +909,12 @@ todas couberem e preenche `response_us[i]` com o pior caso de cada uma.
 |---|---|---|---|
 | `s_q_pzem_release` | Fila de 1 lugar com o instante de liberação | ISR do timer | `pzem_task` |
 | `s_q_samples` | Fila de 8 lugares com as amostras (`sample_msg_t`) | `pzem_task` | `proc_task` |
-| `s_q_snapshot` | Fila de 1 lugar com a fotografia, sempre sobrescrita | `proc_task` | `status_task`, `report_task` |
+| `s_q_snapshot` | Fila de 1 lugar com a fotografia, sempre sobrescrita | `proc_task` | `status_task`, `report_task`, `net_task` |
+| `s_q_net` | Fila de 1 lugar com o estado da rede (`telemetry_status_t`), sempre sobrescrita | `init_task` (no boot), depois `net_task` | `report_task` |
 | `s_task[]` | Os identificadores das 4 tarefas (para medir a pilha) | `init_task` | `report_task` |
+| `s_net_task` | O identificador da `net` (`NULL` com a rede desligada) | `init_task` | `report_task` |
+| `s_init_task` | O identificador da `init`, para a `net` avisar que o Wi-Fi iniciou | `init_task` | `net_task` |
+| `s_net_body` | O buffer do corpo do POST (768 bytes, fora da pilha) | só `net_task` | só `net_task` |
 | `s_mon[]` | Um `rt_monitor_t` por tarefa | cada tarefa no seu | `report_task` |
 | `s_pzem_lost_isr` | Quantas liberações a ISR não conseguiu entregar | ISR | `pzem_task` |
 | `s_proc` | O estado do processamento | só `proc_task` | só `proc_task` |
@@ -778,7 +928,10 @@ certo?), `t_us` (quando ficou pronta) e `m` (a medição).
 |---|---|
 | `app_main()` | Ponto de entrada que o ESP-IDF chama. Roda no núcleo 0 e só cria a `init_task` no núcleo 1. |
 | `init_task()` | Monta tudo (seção [4.1](#41-o-boot-acontece-uma-vez)). Cria as tarefas a partir de `RT_TASKS[]` (nome e prioridade) e de uma tabela local com a função e o tamanho da pilha de cada uma. Liga o timer por último e se apaga. |
-| `create_task_or_die(fn, name, stack, prio)` | Cria uma tarefa presa no núcleo 1 (`xTaskCreatePinnedToCore`). Se faltar memória, chama `fatal()`. |
+| `create_task_or_die(fn, name, stack, prio)` | Cria uma tarefa presa no núcleo 1 (chama `create_task_on_core` com `APP_CORE`). |
+| `create_task_on_core(fn, name, stack, prio, core)` | Cria uma tarefa presa no núcleo pedido (`xTaskCreatePinnedToCore`). Se faltar memória, chama `fatal()`. |
+| `start_network()` | Chamada pela `init`. Confere SSID, senha e URL (`telemetry_check_config`) e publica o resultado em `s_q_net`. Com a configuração errada ou vazia, imprime `[init] rede desligada: <motivo>` e volta: a `net` nem é criada. Com ela certa, cria a `net` no núcleo 0 (`NET_CORE`, pilha de 8 KB) e espera até 3 s o aviso de que o Wi-Fi iniciou. |
+| `net_task()` | **Núcleo 0.** Liga o Wi-Fi (`wifi_link_start`) e o cliente HTTP (`http_post_init`) e avisa a `init`. Depois, a cada 5 s (`xTaskDelayUntil`): espia a foto, pega o próximo `seq`, monta o JSON, faz o POST se houver IP, classifica e conta o resultado, anota o envio mais demorado e publica o estado em `s_q_net`. Falha de rede só é contada: o próximo ciclo tenta de novo. |
 | `fatal(what)` | Imprime `FATAL: ...` e chama `abort()`: o ESP-IDF mostra o *backtrace* e reinicia. |
 | `on_pzem_release(release_us)` | **Interrupção** do timer. Tenta pôr o instante na fila da `pzem`. Se a fila ainda estiver cheia (a leitura anterior não terminou), soma 1 em `s_pzem_lost_isr`. Devolve se acordou tarefa mais prioritária. |
 | `pzem_task()` | Laço infinito: espera a liberação na fila → `account_lost()` → `pzem_link_read()` → `send_sample()` → `rt_monitor_job_done()`. |
@@ -792,7 +945,8 @@ certo?), `t_us` (quando ficou pronta) e `m` (a medição).
 | `print_measurements(s, uptime_s)` | Linha `[ 602s] PZEM ok=... falha=... \| V=... I=... P=... f=... FP=...`. |
 | `print_energy_and_goal(s)` | Linhas de energia (dia, anterior, total, potência média, lacunas recuperadas) e da meta (uso, projeção, estado, limite de potência). |
 | `print_anomalies(s)` | Linha `anomalias: ...` com o nome de cada alerta ligado (com a gravidade na tensão) e o total de saltos. |
-| `print_rt_line(uptime_s)` | Monta a linha `rt t=...` juntando `rt_monitor_format()` das 4 tarefas, e a linha de memória: heap livre e o mínimo de pilha livre que cada tarefa já teve (`uxTaskGetStackHighWaterMark`). |
+| `print_network()` | Linha `rede: ...` a partir de `s_q_net` (`telemetry_format_status`). |
+| `print_rt_line(uptime_s)` | Monta a linha `rt t=...` juntando `rt_monitor_format()` das 4 tarefas, e a linha de memória: heap livre e o mínimo de pilha livre que cada tarefa já teve (`uxTaskGetStackHighWaterMark`), inclusive a `net` quando ela existe. |
 | `print_wh(label, mwh)` | Imprime mWh como `Wh` com 3 casas (`45312` → `45.312 Wh`). |
 | `hard_tasks_clean()` | `true` se toda tarefa *hard* (`proc` e `pzem`) já rodou pelo menos uma vez e tem `misses == 0`. |
 
@@ -842,10 +996,23 @@ tabela acima.
 app_main
 └── init_task
     ├── board_init_console / board_init_led / board_init_pzem_uart      (hal)
-    ├── xQueueCreate ×3                                                  (FreeRTOS)
+    ├── xQueueCreate ×4                                                  (FreeRTOS)
     ├── rt_monitor_init ×4                                               (rt)
     ├── create_task_or_die ×4 ──► proc_task, pzem_task, status_task, report_task
+    ├── start_network ──► telemetry_check_config                         (proc)
+    │                 └─► create_task_on_core(núcleo 0) ──► net_task
     └── acq_timer_start(1 s, on_pzem_release)                           (hal)
+
+net_task                                                                (núcleo 0)
+├── wifi_link_device_id, wifi_link_start, http_post_init                 (hal)
+├── xTaskNotifyGive(init)
+└── a cada 5 s
+    ├── xQueuePeek(s_q_snapshot)
+    ├── telemetry_next_seq, telemetry_build_json                          (proc)
+    ├── wifi_link_is_up ──► http_post_json ──► esp_http_client_*          (hal / ESP-IDF)
+    ├── telemetry_classify, telemetry_record                              (proc)
+    ├── wifi_link_ip
+    └── xQueueOverwrite(s_q_net)
 
 [ISR do gptimer] on_alarm ──► on_pzem_release ──► fila s_q_pzem_release
 
@@ -881,8 +1048,8 @@ status_task
 
 report_task
 ├── xQueuePeek(s_q_snapshot)
-├── print_measurements / print_energy_and_goal / print_anomalies / print_rt_line
-│       └── goal_status_name, anomaly_name, voltage_band_name, rt_monitor_format
+├── print_measurements / print_energy_and_goal / print_anomalies / print_network / print_rt_line
+│       └── goal_status_name, anomaly_name, voltage_band_name, telemetry_format_status, rt_monitor_format
 ├── hard_tasks_clean
 └── rt_monitor_job_done
 ```
@@ -895,8 +1062,8 @@ Quando duas tarefas mexem na mesma coisa ao mesmo tempo, o resultado pode sair
 corrompido. O projeto evita isso **sem nenhum mutex**, com três regras:
 
 1. **Um dono por recurso.** Só a `pzem` usa a UART2, só a `proc` mexe em
-   `s_proc`, só a `status` mexe no LED, só a `report` usa o `printf`. Ninguém
-   compartilha, então ninguém briga.
+   `s_proc`, só a `status` mexe no LED, só a `report` usa o `printf` e só a
+   `net` usa o Wi-Fi e o cliente HTTP. Ninguém compartilha, então ninguém briga.
 2. **Dados passam por filas, por cópia.** A `pzem` não entrega um ponteiro para
    a leitura: a fila copia a `sample_msg_t` inteira. Quem recebe tem a própria
    cópia.
@@ -919,7 +1086,12 @@ E a interrupção do timer **nunca chama** o monitor: ela só conta num
 |---|---|---|---|---|
 | `s_q_pzem_release` | 1 | ISR (`xQueueSendFromISR`) | `pzem_task` (`xQueueReceive`) | Liberação perdida → `miss` da `pzem` |
 | `s_q_samples` | 8 | `pzem_task` (`xQueueSend`, sem esperar) | `proc_task` (`xQueueReceive`) | Amostra perdida → `miss` da `pzem` |
-| `s_q_snapshot` | 1 | `proc_task` (`xQueueOverwrite`) | `status` e `report` (`xQueuePeek`) | Nunca enche: sobrescreve |
+| `s_q_snapshot` | 1 | `proc_task` (`xQueueOverwrite`) | `status`, `report` e `net` (`xQueuePeek`) | Nunca enche: sobrescreve |
+| `s_q_net` | 1 | `net_task` (`xQueueOverwrite`; a `init` no boot) | `report` (`xQueuePeek`) | Nunca enche: sobrescreve |
+
+As filas do FreeRTOS funcionam entre núcleos: a `net` (núcleo 0) lê a foto que
+a `proc` (núcleo 1) publicou, e a `report` (núcleo 1) lê o estado que a `net`
+publicou, sempre por cópia e inteiros.
 
 ---
 
@@ -938,15 +1110,17 @@ Compilados com `gcc` junto com os fontes de `proc/`, `rt/` e
 | `test_goal.c` | `goal.c`: estados da meta, projeção, limite de potência com histerese |
 | `test_anomaly.c` | `anomaly.c`: tensão, frequência, FP, salto, sensor sem resposta |
 | `test_processing.c` | `processing.c`: configuração padrão igual à spec, leitura com falha, padrão e frequência do pisca do LED |
-| `test_rt.c` | `rt_monitor.c`, `rt_sched.c` e a tabela de `rt_tasks.c` (inclusive a análise do firmware) |
+| `test_rt.c` | `rt_monitor.c`, `rt_sched.c` e a tabela de `rt_tasks.c` (inclusive a análise do firmware e a `net` fora dela) |
+| `test_telemetry.c` | `telemetry.c`: o JSON do contrato (impresso como `# json-<caso>: ...` para o Node conferir), JSON que não cabe, classificação e contagem dos envios, linha `rede:`, conferência da configuração |
 
 ### `test/spec/`: a ponte com a especificação
 
-A especificação fica em `.spec/features/aquisicao-processamento/spec.md`, na
-raiz do repositório, com critérios de aceite numerados (`AC-001`, `AC-002`,
-...). Cada `*.spec.test.mjs` tem um teste `@spec:AC-xxx` por critério. Ele
-compila e roda o teste em C correspondente (`lib/host.mjs`) e exige que os
-casos daquele critério tenham passado.
+As especificações ficam em `.spec/features/aquisicao-processamento/spec.md` e
+`.spec/features/telemetria-wifi/spec.md`, na raiz do repositório, com
+critérios de aceite numerados (`AC-001`, `AC-002`, ...). Cada
+`*.spec.test.mjs` tem um teste `@spec:AC-xxx` por critério. Ele compila e
+roda o teste em C correspondente (`lib/host.mjs`) e exige que os casos daquele
+critério tenham passado.
 
 | Arquivo | Critérios |
 |---|---|
@@ -958,17 +1132,30 @@ casos daquele critério tenham passado.
 | `base-esp32.spec.test.mjs` | AC-019 (mapa de pinos) |
 | `firmware.spec.test.mjs` | AC-020 (os dois firmwares compilam sem avisos, pelo PlatformIO) |
 | `entregaveis.spec.test.mjs` | AC-021 (diagrama confere com `rt_tasks.c`), AC-018 (log de 10 min na bancada) |
+| `telemetria.spec.test.mjs` | AC-022 (JSON do contrato, conferido com `JSON.parse`), AC-023 (sem leitura → `null`), AC-024 (contagem e linha `rede:`), AC-027 (rede desligada com o motivo) |
+| `backend-teste.spec.test.mjs` | AC-025 (sobe o backend de teste numa porta livre e manda o JSON que o C montou) |
+| `rede.spec.test.mjs` | AC-026 (rede no núcleo 0 e nada na flash, pelo `sdkconfig` e pelo código), AC-027 (credenciais fora do git) |
+| `bancada-rede.spec.test.mjs` | AC-028 (10 min na bancada com o Wi-Fi ligado: log serial + o que o backend de teste recebeu) |
 
 `lib/bench.mjs` lê o log da bancada e confere `rt t=600s` ou mais, `miss=0` em
-`proc` e `pzem`, pelo menos 95% de leituras boas e `>>> RT PASS <<<`.
+`proc` e `pzem`, pelo menos 95% de leituras boas e `>>> RT PASS <<<`. Para a
+bancada com rede, também lê a linha `rede:` e o arquivo do backend de teste
+(pelo menos 95% dos envios, pela sequência `seq`, cobrindo 600 s).
+`lib/telemetria.mjs` compila o `test_telemetry.c` e devolve os JSON que ele
+imprime.
 
 ### `test/bench/` e `tools/`
 
-- `test/bench/LEIAME.md` explica a prova de bancada. O log
-  `serial-bancada.log` cai nessa pasta.
+- `test/bench/LEIAME.md` explica as provas de bancada. O log
+  `serial-bancada.log` e o `telemetria-recebida.jsonl` caem nessa pasta.
 - `tools/capturar-serial.ps1` acha a porta COM da placa, reinicia o DevKit
   pelo sinal RTS (para o log começar no boot), grava 11 minutos de serial
   nesse arquivo e para sozinho.
+- `tools/backend-teste.mjs` é um backend mínimo em Node, sem dependências:
+  recebe o POST em `/api/leituras`, confere o contrato
+  (`problemasDoContrato()`), responde 201 ou 400 e grava cada leitura aceita
+  em `test/bench/telemetria-recebida.jsonl`, avisando quando falta um `seq`.
+  Ao subir, imprime a URL a configurar no menuconfig.
 
 ---
 
@@ -1000,6 +1187,9 @@ onde ele vem:
 | Mudar o texto do relatório | Funções `print_*` em `app/energytrack_main.c` (sem mudar o formato da linha `rt t=...`, que o teste de bancada lê) |
 | Mudar como o LED pisca | `proc_led_pattern()` e `led_pattern_level()` em `src/proc/processing.c` |
 | Mudar CPU, tick ou console | `sdkconfig.defaults` (e apague os `sdkconfig.<ambiente>` gerados) |
+| Configurar o Wi-Fi e a URL do backend | `pio run -e energytrack_fw -t menuconfig` → "EnergyTrack - telemetria" (fica em `sdkconfig.energytrack_fw`, fora do git) |
+| Mudar o intervalo de envio | `RT_NET_TASK` em `src/rt/rt_tasks.c` **e** a linha `net` do diagrama |
+| Mudar o JSON enviado | `telemetry_build_json()` em `src/proc/telemetry.c`, o contrato na spec telemetria-wifi, o `test_telemetry.c` e o `problemasDoContrato()` do backend de teste |
 
 Depois de mexer, rode os testes no PC (veja o README). Eles avisam se alguma
 conta, limite ou o diagrama deixou de bater com a especificação.
