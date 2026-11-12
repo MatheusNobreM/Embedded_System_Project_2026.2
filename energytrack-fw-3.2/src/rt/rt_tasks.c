@@ -23,3 +23,11 @@ const rt_task_param_t RT_TASKS[RT_TASK_COUNT] = {
 /* Núcleo 1: tick de 1 kHz e IRQs das UARTs (PZEM e console) e do gptimer:
  * orçamento de 50 µs a cada 1 ms (5% da CPU), com folga. */
 const rt_task_param_t RT_ISR_LOAD = { "isr", 255, 1 * MS, 1 * MS, 50, 0, true };
+
+/*
+ * Núcleo 0 (feature telemetria-wifi): a cada 5 s a net pega a fotografia,
+ * monta o JSON (~0,1 ms) e faz o POST, esperando até 3 s pela resposta
+ * (HTTP_POST_TIMEOUT_MS). Soft e fora da análise do núcleo 1. No núcleo 0
+ * ela fica abaixo das tarefas do ESP-IDF (Wi-Fi 23, lwIP 18, eventos 20).
+ */
+const rt_task_param_t RT_NET_TASK = { "net", 2, 5000 * MS, 5000 * MS, 20 * MS, 3000 * MS, false };

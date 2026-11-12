@@ -270,6 +270,10 @@ static void test_config_disabled_with_reason(void)
     TAP_CHECK(strstr(line, "rede: desligada (URL do backend precisa comecar com http:// ou https://)") == line,
               "linha com URL inválida: %s", line);
     printf("# rede-desligada: %s\n", line);
+    st.cfg = TELEM_CFG_FALHA_INICIO;
+    telemetry_format_status(&st, line, sizeof line);
+    TAP_CHECK(strcmp(line, "rede: desligada (falha ao iniciar o Wi-Fi ou o cliente HTTP)") == 0,
+              "linha com falha de início: %s", line);
 }
 
 int main(void)

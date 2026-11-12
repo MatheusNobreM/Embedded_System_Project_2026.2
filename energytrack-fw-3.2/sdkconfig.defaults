@@ -24,3 +24,21 @@ CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=y
 
 # Módulo WROOM-32
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+# Com Wi-Fi, lwIP, cliente HTTP e TLS o firmware passa de 1 MB (96% da
+# partição padrão): a tabela "single app large" dá 1,5 MB para a aplicação.
+# O PlatformIO usa board_build.partitions (platformio.ini), que diz o mesmo.
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+
+# Rede (feature telemetria-wifi): tudo no núcleo 0, para o núcleo 1 continuar
+# só com aquisição e processamento. A tarefa net (criada no núcleo 0) liga o
+# Wi-Fi de lá, então a interrupção do rádio também fica no núcleo 0.
+CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_0=y
+CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU0=y
+# Nada da rede grava na flash: gravar na flash desliga o cache e pausa os
+# DOIS núcleos, o que poderia estourar o deadline do proc. O Wi-Fi não usa a
+# NVS (a configuração fica na RAM) e o rádio é calibrado a cada boot em vez de
+# guardar a calibração.
+# CONFIG_ESP_WIFI_NVS_ENABLED is not set
+# CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE is not set
+# SSID, senha e URL do backend NÃO entram aqui (este arquivo é versionado):
+# ficam no menuconfig, menu "EnergyTrack - telemetria" (src/Kconfig.projbuild).

@@ -88,6 +88,7 @@ typedef enum {
     TELEM_CFG_SENHA_INVALIDA,
     TELEM_CFG_SEM_URL,
     TELEM_CFG_URL_INVALIDA,
+    TELEM_CFG_FALHA_INICIO,   /* configuração certa, mas o Wi-Fi ou o cliente HTTP não iniciou */
 } telemetry_cfg_t;
 
 /** Confere SSID, senha e URL do backend (vindos do menuconfig). */

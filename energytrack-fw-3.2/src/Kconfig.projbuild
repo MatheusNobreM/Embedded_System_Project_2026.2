@@ -1,0 +1,34 @@
+# Opcoes do EnergyTrack no menuconfig (feature telemetria-wifi).
+#
+# Os valores NAO vao para o repositorio: o menuconfig grava em
+# sdkconfig.energytrack_fw, que o .gitignore deixa de fora. Para configurar:
+#   pio run -e energytrack_fw -t menuconfig   -> "EnergyTrack - telemetria"
+# ou edite as linhas CONFIG_ET_* em sdkconfig.energytrack_fw e compile de novo.
+# Com SSID ou URL vazios (o padrao) o firmware roda sem rede.
+# (Arquivo so em ASCII: o menuconfig do Windows nao mostra acentos direito.)
+
+menu "EnergyTrack - telemetria"
+
+    config ET_WIFI_SSID
+        string "Rede Wi-Fi (SSID)"
+        default ""
+        help
+            Nome da rede Wi-Fi de 2,4 GHz (o ESP32 nao usa 5 GHz). Vazio =
+            firmware sem rede: a tarefa net nao e criada e o relatorio mostra
+            "rede: desligada (sem SSID)".
+
+    config ET_WIFI_PASSWORD
+        string "Senha da rede Wi-Fi"
+        default ""
+        help
+            De 8 a 63 caracteres (WPA2-Personal). Vazio = rede aberta.
+
+    config ET_BACKEND_URL
+        string "URL do backend (recebe o POST com o JSON)"
+        default ""
+        help
+            Por exemplo http://192.168.0.10:8080/api/leituras. O backend de
+            teste (node tools/backend-teste.mjs) imprime a URL certa ao subir.
+            https:// tambem funciona, com certificado de uma CA publica.
+
+endmenu

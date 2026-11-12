@@ -38,4 +38,11 @@ extern const rt_task_param_t RT_TASKS[RT_TASK_COUNT];
 /* Interrupções + kernel do núcleo 1 (tick, UARTs, gptimer) como tarefa de prioridade máxima. */
 extern const rt_task_param_t RT_ISR_LOAD;
 
+/*
+ * Tarefa net, no NÚCLEO 0 (Wi-Fi e envio ao backend). Fica fora de RT_TASKS
+ * porque não disputa o núcleo 1: não entra na análise de tempo de resposta
+ * nem no aceite de tempo real (soft). Aparece no diagrama com estes números.
+ */
+extern const rt_task_param_t RT_NET_TASK;
+
 #endif /* RT_TASKS_H */

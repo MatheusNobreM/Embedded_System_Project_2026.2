@@ -195,6 +195,7 @@ const char *telemetry_cfg_reason(telemetry_cfg_t cfg)
     case TELEM_CFG_SENHA_INVALIDA: return "senha do Wi-Fi precisa de 8 a 63 caracteres";
     case TELEM_CFG_SEM_URL:        return "sem URL do backend";
     case TELEM_CFG_URL_INVALIDA:   return "URL do backend precisa comecar com http:// ou https://";
+    case TELEM_CFG_FALHA_INICIO:   return "falha ao iniciar o Wi-Fi ou o cliente HTTP";
     }
     return "?";
 }

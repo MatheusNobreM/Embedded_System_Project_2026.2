@@ -129,6 +129,13 @@ static void test_rta_detects_overload(void)
 }
 
 /* ------------------------------------------------- tabela de tarefas -- */
+static void print_task_line(const rt_task_param_t *t)
+{
+    printf("# task: %s,%u,%lu,%lu,%lu,%lu,%s\n", t->name, (unsigned)t->priority, (unsigned long)t->period_us,
+           (unsigned long)t->deadline_us, (unsigned long)t->budget_us, (unsigned long)t->suspend_us,
+           t->hard ? "hard" : "soft");
+}
+
 static void test_task_table_rules(void)
 {
     for (size_t i = 0; i < RT_TASK_COUNT; ++i) {
@@ -145,10 +152,31 @@ static void test_task_table_rules(void)
             if (t->hard && u->hard && t->deadline_us < u->deadline_us)
                 TAP_CHECK(t->priority > u->priority, "deadline monotônico violado: %s x %s", t->name, u->name);
         }
-        printf("# task: %s,%u,%lu,%lu,%lu,%lu,%s\n", t->name, (unsigned)t->priority,
-               (unsigned long)t->period_us, (unsigned long)t->deadline_us, (unsigned long)t->budget_us,
-               (unsigned long)t->suspend_us, t->hard ? "hard" : "soft");
+        print_task_line(t);
     }
+}
+
+/* A net roda no núcleo 0: entra no diagrama, mas não no conjunto analisado do núcleo 1. */
+static void test_net_task_outside_core1_analysis(void)
+{
+    const rt_task_param_t *net = &RT_NET_TASK;
+    TAP_CHECK(strcmp(net->name, "net") == 0, "nome da tarefa de rede: %s", net->name);
+    TAP_CHECK(!net->hard, "a net não pode entrar no aceite de tempo real (é soft)");
+    TAP_CHECK(net->deadline_us <= net->period_us, "net: deadline acima do período");
+    TAP_CHECK(net->suspend_us < net->deadline_us, "net: a espera pela resposta HTTP (%lu us) precisa caber no deadline",
+              (unsigned long)net->suspend_us);
+    for (size_t i = 0; i < RT_TASK_COUNT; ++i) {
+        TAP_CHECK(strcmp(RT_TASKS[i].name, net->name) != 0, "a net não pode estar em RT_TASKS (núcleo 1)");
+    }
+    rt_sched_task_t set[SET_SIZE];
+    firmware_set(set);
+    uint32_t r[SET_SIZE];
+    TAP_CHECK(rt_sched_rta(set, SET_SIZE, r), "a análise do núcleo 1 continua escalonável");
+    for (size_t i = 0; i < SET_SIZE; ++i) {
+        TAP_CHECK(set[i].c_us != net->budget_us || set[i].t_us != net->period_us || set[i].priority != net->priority,
+                  "a net apareceu no conjunto analisado do núcleo 1 (posição %u)", (unsigned)i);
+    }
+    print_task_line(net);
 }
 
 int main(void)
@@ -161,5 +189,6 @@ int main(void)
     tap_run("AC-017 tabela do firmware cabe nos deadlines", test_rta_firmware_table_fits);
     tap_run("AC-017 conjunto sobrecarregado é acusado", test_rta_detects_overload);
     tap_run("tabela: prioridades únicas, hard acima de soft, deadline monotônico", test_task_table_rules);
+    tap_run("AC-026 tarefa net do núcleo 0 fica fora da análise do núcleo 1", test_net_task_outside_core1_analysis);
     return tap_done();
 }

@@ -1,9 +1,11 @@
 # Diagrama de tarefas — EnergyTrack WPS 3.1
 
 Firmware `energytrack_fw` no ESP32 DevKit (ESP32-WROOM-32, FreeRTOS do
-ESP-IDF) com o PZEM-004T v3 na UART2. Todas as tarefas e interrupções do
-firmware ficam presas no **núcleo 1** (APP_CPU); o núcleo 0 fica com o
-sistema. Por isso a análise abaixo é de um núcleo só. A tabela abaixo é
+ESP-IDF) com o PZEM-004T v3 na UART2. As tarefas de aquisição,
+processamento e saída, e as interrupções delas, ficam presas no **núcleo 1**
+(APP_CPU). O núcleo 0 fica com o sistema e com a **rede**: a tarefa `net`, o
+Wi-Fi e a pilha TCP/IP, que mandam os dados ao backend (feature
+telemetria-wifi). Por isso a análise abaixo é de um núcleo só. A tabela abaixo é
 conferida automaticamente contra `src/rt/rt_tasks.c` (teste
 `entregaveis.spec.test.mjs`): se alguém mudar prioridade, período ou deadline
 no código sem atualizar este diagrama, o teste quebra.
@@ -32,10 +34,20 @@ flowchart LR
     PROC -- "q_snapshot (1, sobrescrita)" --> REPORT
     STATUS["status · prio 2 · T = 50 ms<br/>(soft)"] --> LED
     REPORT["report · prio 1 · T = 2 s<br/>(soft)"] --> CON
+
+    subgraph C0["Núcleo 0 (rede)"]
+        NET["net · prio 2 · T = 5 s<br/>(soft) · JSON + HTTP POST"]
+        WIFI["Wi-Fi + lwIP<br/>(tarefas do ESP-IDF)"]
+    end
+    BACKEND[("backend<br/>POST /api/leituras")]
+    PROC -- "q_snapshot (1, sobrescrita)" --> NET
+    NET --> WIFI --> BACKEND
+    NET -- "q_net (1, sobrescrita)" --> REPORT
 ```
 
 - **Um dono por recurso**: só `pzem` usa a UART2, só `proc` mexe no estado do
-  processamento, só `status` mexe no LED e só `report` escreve no console.
+  processamento, só `status` mexe no LED, só `report` escreve no console e só
+  `net` usa o Wi-Fi e o cliente HTTP.
 - **ISR curta**: a interrupção do timer só carimba o instante e entrega a
   liberação numa fila de 1 posição. Fila cheia = liberação perdida = estouro contado.
 - **Caixa de correio**: `q_snapshot` guarda só a fotografia mais recente do
@@ -49,14 +61,20 @@ flowchart LR
 | `pzem` | 3 | 1 s | 500 ms | 3 ms | 220 ms | hard | timer de hardware (1 s) |
 | `status` | 2 | 50 ms | 50 ms | 1 ms | 0 ms | soft | periódica (`xTaskDelayUntil`) |
 | `report` | 1 | 2 s | 2 s | 30 ms | 0 ms | soft | periódica (`xTaskDelayUntil`) |
+| `net` | 2 | 5 s | 5 s | 20 ms | 3 s | soft, **núcleo 0** | periódica (`xTaskDelayUntil`) |
 
 Interrupções e kernel do núcleo 1 (tick de 1 kHz, UARTs do PZEM e do console,
 gptimer) entram na análise como uma tarefa de prioridade máxima com 50 µs a
-cada 1 ms (5% da CPU). O núcleo 0 roda as tarefas do sistema do ESP-IDF
-(esp_timer, IPC e, num WPS futuro, o Wi-Fi): o firmware não cria nada lá, então
-elas não disputam a CPU das tarefas acima. A tarefa `init` (prioridade 10,
+cada 1 ms (5% da CPU). A `net` roda no **núcleo 0**, junto das tarefas do
+ESP-IDF (esp_timer, IPC, laço de eventos, Wi-Fi e lwIP, todas presas lá pelo
+`sdkconfig.defaults`). Ela não disputa a CPU das tarefas acima e por isso fica
+fora da análise (`RT_NET_TASK`, separada de `RT_TASKS`). A suspensão de 3 s é o
+limite de espera pela resposta HTTP. Sem SSID ou URL no menuconfig ela nem é
+criada. A rede também não grava nada na flash: uma gravação desliga o cache e
+pausaria os **dois** núcleos. A tarefa `init` (prioridade 10,
 núcleo 1) só existe no boot: liga o console, o LED e a UART2, cria filas e
-tarefas, liga o timer e se apaga. Como os drivers alocam a interrupção no
+tarefas, cria a `net` no núcleo 0 e espera até 3 s ela iniciar o Wi-Fi, liga
+o timer e se apaga. Como os drivers alocam a interrupção no
 núcleo de quem os instala, é ela que garante que todas as ISRs fiquem no núcleo 1.
 
 **Por que estas prioridades**: as tarefas do critério de aceite (hard) ficam

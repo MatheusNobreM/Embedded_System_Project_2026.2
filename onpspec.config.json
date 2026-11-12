@@ -24,6 +24,7 @@
     ".claude/**",
     "energytrack-fw-3.2/build/**",
     "energytrack-fw-3.2/build-host/**",
-    "energytrack-fw-3.2/.pio/**"
+    "energytrack-fw-3.2/.pio/**",
+    "energytrack-fw-3.2/sdkconfig.energytrack_*"
   ]
 }
