@@ -4,24 +4,8 @@
 // a campo.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runHostTest, assertCriterion, assertAllPassed } from './lib/host.mjs';
-
-export const telemetry = () => runHostTest('test_telemetry', [
-  'src/proc/telemetry.c', 'src/proc/anomaly.c', 'src/proc/goal.c',
-]);
-
-/** JSON impresso pelo teste em C como "# json-<caso>: {...}". */
-export function printedJson(result, name) {
-  const prefix = `# json-${name}: `;
-  const line = result.output.split(/\r?\n/).find((l) => l.startsWith(prefix));
-  assert.ok(line, `o teste em C não imprimiu o JSON "${name}"\n\nsaída:\n${result.output}`);
-  const text = line.slice(prefix.length);
-  try {
-    return { text, json: JSON.parse(text) };
-  } catch (err) {
-    assert.fail(`"${name}" não é JSON válido (${err.message}):\n${text}`);
-  }
-}
+import { assertCriterion, assertAllPassed } from './lib/host.mjs';
+import { printedJson, telemetry } from './lib/telemetria.mjs';
 
 const CONTRACT_KEYS = ['device', 'seq', 'uptime_s', 'leitura', 'energia', 'meta', 'anomalias', 'tensao_faixa', 'saltos', 'pzem'];
 
