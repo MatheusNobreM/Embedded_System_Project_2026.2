@@ -104,14 +104,54 @@ backend aplica `upgrade head` ao subir, e nada cria tabela por fora. A tabela
 `leituras` tem `device`, `seq`, `uptime_s`, `recebido_em` (UTC) e `dados` (o
 JSON inteiro), com índice por placa e hora.
 
-Para mudar o esquema: altere o modelo em `energytrack_backend/banco.py` e gere
-a migração (dentro de `backend/`):
+Para mudar o esquema: altere o modelo em `energytrack_backend/models/` e gere a
+migração (dentro de `backend/`):
 
 ```bash
 uv run alembic revision --autogenerate -m "o que mudou"
 uv run alembic upgrade head        # ou só suba o backend
 uv run alembic check               # confere se modelo e migrações batem
 ```
+
+## Arquitetura
+
+O código é dividido em camadas, e as dependências só descem:
+
+```text
+          placa / app (HTTP)
+                 │
+  api/routes     recebe a requisição, chama o serviço, devolve o schema
+  api/deps       monta sessão → repositório → serviço (Depends do FastAPI)
+  api/erros      erro do domínio → 400 / 404 / 422
+                 │
+  services       as regras: guardar com a hora de chegada, envios perdidos,
+                 limite e período do histórico. Sem FastAPI e sem SQLAlchemy
+                 │  (recebe um RepositorioDeLeituras, que é um Protocol)
+  repositories   consultas no banco (SQLAlchemy); devolvem dataclasses do domínio
+                 │
+  models / db    tabela ORM, sessão, migrações do Alembic
+
+  schemas  DTOs Pydantic: entrada (o JSON da placa) e saída (o que o app recebe)
+  core     configuração, relógio (UTC) e erros do domínio
+```
+
+- Uma rota nunca fala com o banco; um serviço nunca importa FastAPI nem
+  SQLAlchemy; um repositório nunca conhece HTTP. O princípio **P-006** da
+  constituição do onp-spec confere isso a cada `audit`, e
+  `tests/test_servicos.py` confere que os serviços carregam sem essas
+  bibliotecas.
+- Por isso os serviços são testados com um repositório em memória e um relógio
+  fixo (`tests/test_servicos.py`), sem banco nem servidor.
+
+### Onde entra cada mudança
+
+| Quero... | Mexa em |
+|---|---|
+| uma rota nova para o app | `schemas/` (o DTO de saída), `services/` (a regra), `api/routes/` (a rota) e, se precisar de consulta nova, `repositories/base.py` (o Protocol) + `repositories/leituras_sql.py` |
+| uma coluna ou tabela nova | `models/` e uma migração: `uv run alembic revision --autogenerate -m "..."` |
+| mudar o contrato do JSON da placa | `schemas/telemetria.py` (e o firmware e o backend de teste, que seguem o mesmo contrato) |
+| um erro novo com código HTTP próprio | `core/erros.py` (o erro) e `api/erros.py` (o código HTTP) |
+| trocar o banco | só `db/` e `repositories/leituras_sql.py`: os serviços não mudam |
 
 ## Estrutura
 
@@ -120,14 +160,30 @@ pyproject.toml, uv.lock            projeto e dependências travadas (uv)
 alembic.ini, alembic/              migrações (versions/0001_leituras.py cria a tabela)
 energytrack_backend/
   __main__.py                      comando energytrack-backend (porta, banco, URL para a placa)
-  principal.py                     monta o FastAPI: migrações, CORS e rotas
-  config.py                        porta padrão, caminho do banco, rota da placa
-  banco.py                         tabela leituras, conexão, horas em UTC, migrações
-  contrato.py                      o JSON da placa em Pydantic estrito e as mensagens de erro
-  rotas_leituras.py                POST /api/leituras
-  rotas_consulta.py                consultas do app
-tests/                             pytest (um marcador ac("AC-xxx") por critério de aceite)
-tests/backend-api.spec.test.mjs    ponte para o onp-spec (roda o pytest com os JSON do código em C da placa)
+  app.py                           monta o FastAPI: migrações, CORS, erros e rotas
+  api/
+    deps.py                        injeção de dependências (sessão, repositório, serviços, relógio)
+    erros.py                       erros → HTTP; mensagens dos problemas do contrato em português
+    routes/leituras.py             POST /api/leituras
+    routes/dispositivos.py         GET /api/dispositivos[/{device}/ultima | /{device}/leituras]
+    routes/sistema.py              GET /
+  services/
+    telemetria.py                  ServicoDeTelemetria: receber leitura, envios perdidos, linha do console
+    consultas.py                   ServicoDeConsultas: placas, última leitura, histórico
+  repositories/
+    base.py                        Protocol RepositorioDeLeituras e os registros do domínio
+    leituras_sql.py                implementação com SQLAlchemy
+  schemas/
+    telemetria.py                  entrada: o JSON da placa em Pydantic estrito
+    leituras.py, sistema.py        saídas: LeituraGuardada, Dispositivo, erros, resumo
+  models/leitura.py                tabela leituras (ORM)
+  db/                              base ORM, sessão, migrações chamadas pelo código
+  core/                            config (porta, banco), relógio UTC, erros do domínio
+tests/
+  test_receber.py, test_consultar.py, test_execucao.py   a API de ponta a ponta (backend-api)
+  test_servicos.py                 as regras isoladas, com repositório em memória
+  test_contrato_api.py             retrato das rotas (openapi_rotas.json): a API não muda sem querer
+  backend-api.spec.test.mjs        ponte para o onp-spec (roda o pytest com os JSON do código em C da placa)
 ```
 
 ## Testes
@@ -136,8 +192,9 @@ tests/backend-api.spec.test.mjs    ponte para o onp-spec (roda o pytest com os J
 uv run pytest            # dentro de backend/
 ```
 
-Os testes sobem o backend de verdade numa porta livre, mandam os JSON da placa
-e conferem banco, recusas e consultas. Pela raiz do repositório, o `verify`
+Os testes de API sobem o backend de verdade numa porta livre, mandam os JSON
+da placa e conferem banco, recusas e consultas; os de serviço rodam as regras
+sem banco e sem HTTP. Pela raiz do repositório, o `verify`
 do onp-spec roda o mesmo pytest pela ponte. A ponte gera os JSON pelo teste em
 C da telemetria do firmware, então precisa do `gcc` no PATH, como os testes
 do firmware.
