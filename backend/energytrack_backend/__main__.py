@@ -1,6 +1,7 @@
 """Sobe o backend no PC: `uv run energytrack-backend [--porta 8080] [--banco arquivo.db]`."""
 
 import argparse
+import logging
 import socket
 
 import uvicorn
@@ -38,6 +39,14 @@ def main(argv: list[str] | None = None) -> None:
     if not 1 <= args.porta <= 65535:
         parser.error(f"porta inválida: {args.porta}")
 
+    # Uma linha por leitura recebida ou recusada (rotas_leituras.py).
+    saida = logging.StreamHandler()
+    saida.setFormatter(logging.Formatter("[%(asctime)s] %(message)s", "%H:%M:%S"))
+    log = logging.getLogger("energytrack_backend")
+    log.addHandler(saida)
+    log.setLevel(logging.INFO)
+    log.propagate = False
+
     caminho = caminho_do_banco(args.banco)
     app = criar_app(url_do_banco(caminho))
 
@@ -52,7 +61,8 @@ def main(argv: list[str] | None = None) -> None:
     print(f"  documentação da API: http://localhost:{args.porta}/docs")
     print("Ctrl+C para parar.", flush=True)
 
-    uvicorn.run(app, host="0.0.0.0", port=args.porta)
+    # Sem o log de acesso do uvicorn: a linha de cada leitura já diz o que chegou.
+    uvicorn.run(app, host="0.0.0.0", port=args.porta, access_log=False)
 
 
 if __name__ == "__main__":
