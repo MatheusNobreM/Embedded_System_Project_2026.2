@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, select
 from sqlalchemy.orm import sessionmaker
 
-from . import __version__, rotas_leituras
+from . import __version__, rotas_consulta, rotas_leituras
 from .banco import Leitura, aplicar_migracoes, criar_engine
 from .config import ROTA_LEITURAS
 
@@ -48,4 +48,5 @@ def criar_app(url_banco: str) -> FastAPI:
         }
 
     rotas_leituras.registrar(app)
+    rotas_consulta.registrar(app)
     return app
