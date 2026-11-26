@@ -217,10 +217,18 @@ CA pública).
 > `sdkconfig.defaults`, preencha as três linhas de novo. O teste do critério
 > AC-026 avisa quando esse arquivo é de antes da rede.
 
+### Backend de verdade
+
+O backend que guarda as leituras e serve a API do app fica em
+[`../backend/`](../backend/README.md) (FastAPI + SQLite). Na raiz do
+repositório, dentro de `backend/`: `uv run energytrack-backend`. Ele usa a
+mesma rota e a mesma porta (8080) do backend de teste e imprime a URL para o
+menuconfig. Não rode os dois ao mesmo tempo.
+
 ### Backend de teste
 
-Para testar sem o backend de verdade, use o backend de teste, em Node e sem
-dependências. No PC conectado à **mesma rede** da placa, dentro de
+Para a prova de bancada (AC-028), ou para testar sem o backend de verdade,
+use o backend de teste, em Node e sem dependências. No PC conectado à **mesma rede** da placa, dentro de
 `energytrack-fw-3.2`:
 
 ```bash
@@ -266,9 +274,10 @@ qualquer outra conta como falha.
 | `tensao_faixa` | `adequada`, `precaria` ou `critica` (PRODIST) |
 | `saltos`, `pzem` | saltos de potência desde o boot; leituras do PZEM boas e com falha |
 
-O contrato completo está na especificação da feature telemetria-wifi; quem
-for escrever o backend de verdade pode usar `problemasDoContrato()` de
-`tools/backend-teste.mjs` como referência.
+O contrato completo está na especificação da feature telemetria-wifi. O
+backend de verdade (`../backend/energytrack_backend/contrato.py`) e o de
+teste (`problemasDoContrato()` em `tools/backend-teste.mjs`) aplicam as
+mesmas regras.
 
 ### A linha `rede:` do relatório
 
