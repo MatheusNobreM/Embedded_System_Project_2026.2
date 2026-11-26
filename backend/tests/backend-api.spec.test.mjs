@@ -68,6 +68,9 @@ test('@spec:AC-033 — o app vê a leitura mais recente de uma placa', () => ass
 test('@spec:AC-034 — o app vê o histórico de um período, em ordem cronológica', () => assertCriterio('AC-034'));
 test('@spec:AC-035 — um comando sobe o backend e mostra a URL para a placa', () => assertCriterio('AC-035'));
 
+test('@spec:AC-036 — as regras de recebimento funcionam sem banco e sem HTTP', () => assertCriterio('AC-036'));
+test('@spec:AC-037 — as regras de consulta funcionam sem banco e sem HTTP', () => assertCriterio('AC-037'));
+
 // backend-camadas: a reorganização não muda a API. Além do retrato do OpenAPI
 // (marcado AC-038), todos os testes da backend-api (AC-029 a AC-035) têm de passar.
 test('@spec:AC-038 — o comportamento da API não muda com as camadas', () => {
