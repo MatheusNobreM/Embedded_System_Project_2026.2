@@ -3,7 +3,8 @@
 import os
 from pathlib import Path
 
-PASTA_BACKEND = Path(__file__).resolve().parent.parent
+# backend/ (este arquivo fica em backend/energytrack_backend/core/)
+PASTA_BACKEND = Path(__file__).resolve().parents[2]
 BANCO_PADRAO = PASTA_BACKEND / "dados" / "energytrack.db"
 PORTA_PADRAO = 8080
 

@@ -1,0 +1,83 @@
+{
+  "GET /": {
+    "corpo": false,
+    "parametros": [],
+    "respostas": [
+      "200"
+    ]
+  },
+  "GET /api/dispositivos": {
+    "corpo": false,
+    "parametros": [],
+    "respostas": [
+      "200"
+    ]
+  },
+  "GET /api/dispositivos/{device}/leituras": {
+    "corpo": false,
+    "parametros": [
+      {
+        "em": "query",
+        "nome": "ate",
+        "obrigatorio": false,
+        "tipos": [
+          "null:",
+          "string:date-time"
+        ]
+      },
+      {
+        "em": "query",
+        "nome": "desde",
+        "obrigatorio": false,
+        "tipos": [
+          "null:",
+          "string:date-time"
+        ]
+      },
+      {
+        "em": "path",
+        "nome": "device",
+        "obrigatorio": true,
+        "type": "string"
+      },
+      {
+        "default": 720,
+        "em": "query",
+        "maximum": 5000,
+        "minimum": 1,
+        "nome": "limite",
+        "obrigatorio": false,
+        "type": "integer"
+      }
+    ],
+    "respostas": [
+      "200",
+      "422"
+    ]
+  },
+  "GET /api/dispositivos/{device}/ultima": {
+    "corpo": false,
+    "parametros": [
+      {
+        "em": "path",
+        "nome": "device",
+        "obrigatorio": true,
+        "type": "string"
+      }
+    ],
+    "respostas": [
+      "200",
+      "404",
+      "422"
+    ]
+  },
+  "POST /api/leituras": {
+    "corpo": true,
+    "parametros": [],
+    "respostas": [
+      "201",
+      "400",
+      "422"
+    ]
+  }
+}

@@ -1,16 +1,14 @@
-"""Contrato do JSON que a placa manda (spec telemetria-wifi, README do firmware seção 6).
+"""DTO de entrada: o JSON que a placa manda (spec telemetria-wifi, README do firmware seção 6).
 
 Mesmas regras de problemasDoContrato() do backend de teste
 (energytrack-fw-3.2/tools/backend-teste.mjs): campos exatos (nem faltando nem
 a mais), números >= 0 e sem conversão de texto, nomes de estado e de
-anomalia fechados. Erros viram mensagens em português com o caminho do campo
-("corpo.meta.estado").
+anomalia fechados. As mensagens de erro em português ficam em api/erros.py.
 """
 
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
-from pydantic_core import ErrorDetails
 
 EstadoMeta = Literal["OK", "PROJECAO_ACIMA", "ATENCAO", "ESTOURADA"]
 Anomalia = Literal["SUBTENSAO", "SOBRETENSAO", "FREQUENCIA", "FP_BAIXO", "SALTO_POTENCIA", "SENSOR_SEM_RESPOSTA"]
@@ -74,53 +72,3 @@ class LeituraDaPlaca(_Contrato):
     tensao_faixa: FaixaTensao
     saltos: Inteiro
     pzem: ContadoresPzem
-
-
-# ------------------------------------------------------------ mensagens --
-def _caminho(loc: tuple) -> str:
-    texto = "corpo"
-    for parte in loc:
-        if parte == "body":
-            continue
-        # Em campo que aceita null, o Pydantic põe o nome do tipo no caminho.
-        if isinstance(parte, str) and parte[:1].isupper():
-            continue
-        texto += f"[{parte}]" if isinstance(parte, int) else f".{parte}"
-    return texto
-
-
-def problema_em_portugues(erro: ErrorDetails) -> str:
-    """Uma linha por problema, no estilo do backend de teste: '<campo> <o que está errado>'."""
-    tipo, loc = erro["type"], erro["loc"]
-    if tipo == "json_invalid":
-        return f"o corpo não é JSON válido ({erro.get('ctx', {}).get('error', erro['msg'])})"
-    campo = _caminho(loc)
-    if campo == "corpo" and tipo in ("model_type", "model_attributes_type", "dict_type"):
-        return "o corpo precisa ser um objeto JSON"
-    veio = f" (veio {erro['input']!r})" if "input" in erro and tipo != "missing" else ""
-    ctx = erro.get("ctx", {})
-    match tipo:
-        case "missing":
-            return f"{campo} está faltando"
-        case "extra_forbidden":
-            return f"{campo} não faz parte do contrato"
-        case "literal_error":
-            opcoes = str(ctx.get("expected", "")).replace(" or ", " ou ")
-            return f"{campo} precisa ser um de {opcoes}{veio}"
-        case "int_type" | "int_from_float":
-            return f"{campo} precisa ser um inteiro{veio}"
-        case "float_type" | "finite_number":
-            return f"{campo} precisa ser um número{veio}"
-        case "greater_than_equal":
-            return f"{campo} precisa ser >= {ctx.get('ge')}{veio}"
-        case "bool_type":
-            return f"{campo} precisa ser true ou false{veio}"
-        case "string_type" | "string_pattern_mismatch":
-            return f"{campo} precisa ser texto com letras, dígitos, - ou _ (até 23){veio}"
-        case "list_type":
-            return f"{campo} precisa ser uma lista{veio}"
-        case "model_type" | "model_attributes_type" | "dict_type":
-            return f"{campo} precisa ser um objeto{veio}"
-        case "value_error":
-            return f"{campo} {erro['msg'].removeprefix('Value error, ')}"
-    return f"{campo}: {erro['msg']}{veio}"

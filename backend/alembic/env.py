@@ -1,4 +1,4 @@
-"""Ambiente das migrações: usa a tabela do backend (banco.py) e o banco de config.py."""
+"""Ambiente das migrações: usa as tabelas de models/ e o banco de core/config.py."""
 
 from logging.config import fileConfig
 from pathlib import Path
@@ -6,8 +6,9 @@ from pathlib import Path
 from alembic import context
 from sqlalchemy import create_engine
 
-from energytrack_backend.banco import Base
-from energytrack_backend.config import caminho_do_banco, url_do_banco
+import energytrack_backend.models  # noqa: F401  (registra as tabelas em Base.metadata)
+from energytrack_backend.db.base import Base
+from energytrack_backend.core.config import caminho_do_banco, url_do_banco
 
 config = context.config
 if config.config_file_name is not None and config.attributes.get("configurar_log", True):

@@ -68,6 +68,13 @@ test('@spec:AC-033 — o app vê a leitura mais recente de uma placa', () => ass
 test('@spec:AC-034 — o app vê o histórico de um período, em ordem cronológica', () => assertCriterio('AC-034'));
 test('@spec:AC-035 — um comando sobe o backend e mostra a URL para a placa', () => assertCriterio('AC-035'));
 
+// backend-camadas: a reorganização não muda a API. Além do retrato do OpenAPI
+// (marcado AC-038), todos os testes da backend-api (AC-029 a AC-035) têm de passar.
+test('@spec:AC-038 — o comportamento da API não muda com as camadas', () => {
+  assertCriterio('AC-038');
+  for (const ac of ['AC-029', 'AC-030', 'AC-031', 'AC-032', 'AC-033', 'AC-034', 'AC-035']) assertCriterio(ac);
+});
+
 test('backend: todos os testes do pytest passam', () => {
   const { casos, saida, status } = pytest();
   const ruins = casos.filter((c) => c.resultado === 'falhou');

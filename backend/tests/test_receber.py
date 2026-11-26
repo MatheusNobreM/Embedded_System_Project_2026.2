@@ -14,9 +14,10 @@ from alembic.script import ScriptDirectory
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
-from energytrack_backend.banco import Base, config_alembic
-from energytrack_backend.config import ROTA_LEITURAS, url_do_banco
-from energytrack_backend.principal import criar_app
+from energytrack_backend.app import criar_app
+from energytrack_backend.core.config import ROTA_LEITURAS, url_do_banco
+from energytrack_backend.db.base import Base
+from energytrack_backend.db.migracoes import config_alembic
 
 PACOTE = Path(__file__).resolve().parent.parent / "energytrack_backend"
 

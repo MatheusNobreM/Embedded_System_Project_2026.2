@@ -6,8 +6,8 @@ import socket
 
 import uvicorn
 
-from .config import PORTA_PADRAO, ROTA_LEITURAS, caminho_do_banco, url_do_banco
-from .principal import criar_app
+from .app import criar_app
+from .core.config import PORTA_PADRAO, ROTA_LEITURAS, caminho_do_banco, url_do_banco
 
 
 def enderecos_locais() -> list[str]:
@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> None:
     if not 1 <= args.porta <= 65535:
         parser.error(f"porta inválida: {args.porta}")
 
-    # Uma linha por leitura recebida ou recusada (rotas_leituras.py).
+    # Uma linha por leitura recebida ou recusada (services/telemetria.py, api/erros.py).
     saida = logging.StreamHandler()
     saida.setFormatter(logging.Formatter("[%(asctime)s] %(message)s", "%H:%M:%S"))
     log = logging.getLogger("energytrack_backend")

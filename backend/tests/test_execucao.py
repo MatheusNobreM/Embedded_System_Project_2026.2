@@ -101,7 +101,7 @@ def test_um_comando_sobe_o_backend_e_mostra_a_url(backend_rodando):
 
 @pytest.mark.ac("AC-035")
 def test_porta_padrao_8080_e_porta_invalida_recusada():
-    from energytrack_backend.config import PORTA_PADRAO
+    from energytrack_backend.core.config import PORTA_PADRAO
 
     assert PORTA_PADRAO == 8080
     r = subprocess.run(

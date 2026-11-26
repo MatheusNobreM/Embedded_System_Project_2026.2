@@ -6,23 +6,31 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from energytrack_backend import rotas_leituras
-from energytrack_backend.banco import Leitura
-from energytrack_backend.config import ROTA_LEITURAS
+from energytrack_backend.api.deps import obter_relogio
+from energytrack_backend.core.config import ROTA_LEITURAS
+from energytrack_backend.models import Leitura
 
 T0 = datetime(2026, 11, 25, 14, 0, 0)  # UTC, sem fuso (como no banco)
 
 
+class RelogioFixo:
+    def __init__(self, t: datetime):
+        self.t = t
+
+    def agora(self) -> datetime:
+        return self.t
+
+
 @pytest.fixture
-def relogio(monkeypatch):
-    """Controla a hora de chegada que o POST carimba."""
-    agora = {"t": T0}
-    monkeypatch.setattr(rotas_leituras, "agora_utc", lambda: agora["t"])
-    return agora
+def relogio(cliente):
+    """Controla a hora de chegada que o POST carimba (troca a dependência do relógio)."""
+    r = RelogioFixo(T0)
+    cliente.app.dependency_overrides[obter_relogio] = lambda: r
+    return r
 
 
 def enviar(cliente, relogio, corpo: dict, quando: datetime) -> None:
-    relogio["t"] = quando
+    relogio.t = quando
     r = cliente.post(ROTA_LEITURAS, content=json.dumps(corpo), headers={"Content-Type": "application/json"})
     assert r.status_code == 201, r.text
 

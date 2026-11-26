@@ -19,8 +19,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from energytrack_backend.config import url_do_banco
-from energytrack_backend.principal import criar_app
+from energytrack_backend.app import criar_app
+from energytrack_backend.core.config import url_do_banco
 
 EXEMPLO_DO_CONTRATO = {
     "device": "et-a4cf12345678",
