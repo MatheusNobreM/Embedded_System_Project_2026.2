@@ -1,8 +1,9 @@
 {
-  "testCommand": "node --test --test-reporter=tap \"energytrack-fw-3.2/test/spec/*.spec.test.mjs\"",
+  "testCommand": "node --test --test-reporter=tap \"energytrack-fw-3.2/test/spec/*.spec.test.mjs\" \"backend/tests/*.spec.test.mjs\"",
   "reporter": "tap",
   "testGlobs": [
-    "energytrack-fw-3.2/test/**"
+    "energytrack-fw-3.2/test/**",
+    "backend/tests/**"
   ],
   "srcGlobs": [
     "energytrack-fw-3.2/src/**",
@@ -12,7 +13,8 @@
     "energytrack-fw-3.2/tools/**",
     "energytrack-fw-3.2/CMakeLists.txt",
     "energytrack-fw-3.2/platformio.ini",
-    "energytrack-fw-3.2/sdkconfig.defaults"
+    "energytrack-fw-3.2/sdkconfig.defaults",
+    "backend/**"
   ],
   "ignoreGlobs": [
     "node_modules/**",
@@ -25,6 +27,10 @@
     "energytrack-fw-3.2/build/**",
     "energytrack-fw-3.2/build-host/**",
     "energytrack-fw-3.2/.pio/**",
-    "energytrack-fw-3.2/sdkconfig.energytrack_*"
+    "energytrack-fw-3.2/sdkconfig.energytrack_*",
+    "backend/.venv/**",
+    "backend/dados/**",
+    "**/__pycache__/**",
+    "backend/.pytest_cache/**"
   ]
 }

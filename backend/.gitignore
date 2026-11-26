@@ -1,0 +1,8 @@
+# Ambiente do uv e caches do Python
+.venv/
+__pycache__/
+.pytest_cache/
+
+# Banco local da demonstração (criado ao subir o backend)
+dados/
+*.db
